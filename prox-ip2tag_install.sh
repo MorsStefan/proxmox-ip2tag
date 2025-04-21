@@ -1,0 +1,137 @@
+#!/bin/bash
+
+# Łukasz Dyś | Mors Stefan
+
+if [[ $EUID -ne 0 ]]; then
+    echo "This installer must be run as root. Please use sudo or log in as root." >&2
+    exit 1
+fi
+
+if ! tmpd="$(mktemp -d)"; then
+    echo "Error while creating temporary directory. Exiting."
+    exit 1
+fi
+
+function download() {
+    local rem="$1" loc="$2"
+    [ -z "$2" ] && exit 1
+    if ! curl -sSL "$rem" -o "$loc"; then
+	echo "Error while downloading '$rem'. Exiting."
+	rm -rf "${tmpd}"
+	exit 1
+    fi
+    if cat "$loc" | grep -qi '<!DOCTYPE html>'; then
+        echo "File '$loc' is probably HTML file. Exiting."
+	rm -rf "${tmpd}"
+        exit 1
+    fi
+    echo "The file '${loc##*/}' has been downloaded to: '$loc'."
+}
+
+function copy() {
+    local src="$1" dst="$2"
+    [ -z "$2" ] && echo "Argument is missing. Exiting." && exit 1
+    if ! yes | cp -f "$src" "$dst"; then
+	echo "Error while copy: '$src' -> '$dst'"
+	echo "Exiting."
+	exit 1
+    fi
+}
+
+SCRIPT_SRC="${tmpd}/prox-ip2tag"
+CONF_SRC="${tmpd}/prox-ip2tag.conf"
+SERVICE_SRC="${tmpd}/prox-ip2tag.service"
+
+CONF_DEST="/usr/local/etc/prox-ip2tag.conf"
+SCRIPT_DEST="/usr/local/bin/prox-ip2tag"
+SERVICE_DEST="/etc/systemd/system/prox-ip2tag.service"
+
+echo
+echo "Installing prox-ip2tag"
+echo "----------------------"
+echo
+download 'https://github.com/MorsStefan/proxmox-ip2tag/raw/refs/heads/main/prox-ip2tag'         "${tmpd}/prox-ip2tag"
+download 'https://github.com/MorsStefan/proxmox-ip2tag/raw/refs/heads/main/prox-ip2tag.conf'    "${tmpd}/prox-ip2tag.conf"
+download 'https://github.com/MorsStefan/proxmox-ip2tag/raw/refs/heads/main/prox-ip2tag.service' "${tmpd}/prox-ip2tag.service"
+echo
+
+if ! command -v jq &>/dev/null; then
+    echo "The program 'jq' is not installed, but it is highly recommended."
+    read -p "Shoud I install it? [Y/n] " reply
+    reply=${reply:-Y}
+
+    if [[ "$reply" =~ ^[Yy]$ ]]; then
+	if apt-get install jq -y >/dev/null; then
+	    echo "'jq' installation was successfull."
+	else
+	    echo "'jq' was not installed, something went wrong."
+	fi
+    else
+	echo "'jq' installation was skipped."
+    fi
+    echo
+fi
+
+if [ -f "$SCRIPT_DEST" ]; then
+    echo "File '$SCRIPT_DEST' already exists. "
+    read -p "Overwrite? [Y/n] " reply
+    reply=${reply:-Y}
+
+    if [[ "$reply" =~ ^[Yy]$ ]]; then
+	systemctl stop prox-ip2tag.service &>/dev/null
+	copy "$SCRIPT_SRC" "$SCRIPT_DEST"
+    else
+        echo "Installation aborted by user."
+	rm -rf "${tmpd}"
+	exit
+    fi
+else
+    copy "$SCRIPT_SRC" "$SCRIPT_DEST"
+    echo "The file 'prox-ip2tag' was successfully copied to: '$SCRIPT_DEST'"
+fi
+echo
+
+
+# Copy config file (only if it doesn't exist)
+if [ -f "$CONF_DEST" ]; then
+    new_cfg_file="${CONF_DEST}_$(date +'%F_%T')"
+    echo "The config file '$CONF_DEST' already exists and was not overwritten."
+    copy "$CONF_SRC" "$new_cfg_file"
+    echo "New config, was copied as: '$new_cfg_file'"
+else
+    copy "$CONF_SRC" "$CONF_DEST"
+    echo "The configuration file was successfully copied to: '$CONF_DEST'"
+fi
+echo
+
+echo "Creating systemd service: prox-ip2tag.service"
+systemctl stop prox-ip2tag.service &>/dev/null
+copy "$SERVICE_SRC" "$SERVICE_DEST"
+systemctl daemon-reload
+echo
+
+chown root:root "$SERVICE_DEST" "$SCRIPT_DEST" "$CONF_DEST"
+chmod 644 "$SERVICE_DEST"; chmod 600 "$CONF_DEST"; chmod 700 "$SCRIPT_DEST"
+rm -rf "${tmpd}"
+
+read -p "Enable and run prox-ip2tag.service [Y/n] " reply
+reply=${reply:-Y}
+if [[ "$reply" =~ ^[Yy]$ ]]; then
+    systemctl enable prox-ip2tag.service
+    systemctl start prox-ip2tag.service
+    systemctl daemon-reload
+    sleep 1
+    if systemctl is-active --quiet prox-ip2tag.service; then
+	echo "Service 'prox-ip2tag' is active and running."
+    else
+	echo "Service 'prox-ip2tag' failed to start."
+    fi
+else
+    echo "Remember to enable and run it later."
+fi
+echo
+
+echo "Installation complete."
+echo
+echo "Remember to modify the config file according to your needs:"
+echo "   -> $CONF_DEST"

@@ -1,0 +1,15 @@
+[Unit]
+Description=Proxmox IP2Tag Service
+After=network-online.target pvedaemon.service pve-cluster.service
+Requires=network-online.target pvedaemon.service
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/prox-ip2tag
+Restart=always
+RestartSec=60
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
