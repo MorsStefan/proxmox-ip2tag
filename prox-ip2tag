@@ -212,6 +212,8 @@ function update_tags() {
     fi
 
     while read -r vmid status _; do
+	
+	! [[ "$vmid" && "$status" ]] && continue
 
 	new_tags=()
 	cur_tags=()
