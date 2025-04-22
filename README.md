@@ -23,8 +23,7 @@ machines and containers running in a Proxmox environment.
 
 ```sh
 # Run as a root
-curl -sSL https://github.com/MorsStefan/proxmox-ip2tag/raw/main/prox-ip2tag_install.sh -o ./prox-ip2tag_install.sh
-bash ./prox-ip2tag_install.sh
+ bash -c "$(curl -sSL https://github.com/MorsStefan/proxmox-ip2tag/raw/main/prox-ip2tag_install.sh)"
 ```
 
 The script will automatically download all necessary files and perform a installation.  
