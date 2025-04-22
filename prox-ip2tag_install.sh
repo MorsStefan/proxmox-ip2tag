@@ -23,7 +23,7 @@ function download() {
 	del_tmpd
         exit 1
     fi
-    echo "File '${loc##*/}' has been downloaded to: '$loc'."
+    echo "File '${rem##*/}' has been downloaded to: '$loc'."
 }
 
 function copy() {
@@ -50,9 +50,9 @@ if [[ "$INSTALL_SOURCE" == "github" ]]; then
 	exit 1
     fi
     tmpd_safe_to_del='yes'
-    download 'https://github.com/MorsStefan/proxmox-ip2tag/raw/refs/heads/main/prox-ip2tag'         "${tmpd}/prox-ip2tag"
-    download 'https://github.com/MorsStefan/proxmox-ip2tag/raw/refs/heads/main/prox-ip2tag.conf'    "${tmpd}/prox-ip2tag.conf"
-    download 'https://github.com/MorsStefan/proxmox-ip2tag/raw/refs/heads/main/prox-ip2tag.service' "${tmpd}/prox-ip2tag.service"
+    download 'https://github.com/MorsStefan/proxmox-ip2tag/releases/latest/download/prox-ip2tag'         "${tmpd}/prox-ip2tag"
+    download 'https://github.com/MorsStefan/proxmox-ip2tag/releases/latest/download/prox-ip2tag.conf'    "${tmpd}/prox-ip2tag.conf"
+    download 'https://github.com/MorsStefan/proxmox-ip2tag/releases/latest/download/prox-ip2tag.service' "${tmpd}/prox-ip2tag.service"
 else
     echo "[Offline installation]"
     echo
@@ -117,12 +117,18 @@ echo
 # Copy config file (only if it doesn't exist)
 if [ -f "$CONF_DEST" ]; then
     new_cfg_file="${CONF_DEST}_$(date +'%F_%T')"
-    echo "Config file '$CONF_DEST' already exists and was not overwritten."
+#    echo "Config file '$CONF_DEST' already exists and was not overwritten."
+#    copy "$CONF_SRC" "$new_cfg_file"
+#    echo "New config, was copied as: '$new_cfg_file'"
+
+    echo "Config file '$CONF_DEST' already exists."
     copy "$CONF_SRC" "$new_cfg_file"
-    echo "New config, was copied as: '$new_cfg_file'"
+    echo "It was not overwritten. A new version was saved as:"
+    echo "-> '$new_cfg_file'"
 else
     copy "$CONF_SRC" "$CONF_DEST"
     echo "Configuration file was successfully copied to: '$CONF_DEST'"
+    show_cfg_info=1
 fi
 echo
 
@@ -144,16 +150,19 @@ if [[ "$reply" =~ ^[Yy]$ ]]; then
     systemctl daemon-reload
     sleep 1
     if systemctl is-active --quiet prox-ip2tag.service; then
-	echo "Service 'prox-ip2tag' is active and running."
+	echo "Service 'prox-ip2tag' is now active and running."
     else
 	echo "Service 'prox-ip2tag' failed to start."
     fi
 else
-    echo "Remember to enable and run it later."
+    echo "Don't forget to enable and start the service manually."
 fi
-echo
 
+echo
 echo "Installation complete."
 echo
-echo "Remember to modify the config file according to your needs:"
-echo "   -> $CONF_DEST"
+if [ "$show_cfg_info" == "1" ]; then
+    echo "Remember to modify the config file according to your needs:"
+    echo "-> $CONF_DEST"
+    echo
+fi
