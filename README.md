@@ -19,11 +19,12 @@ machines and containers running in a Proxmox environment.
 - Can run as a systemd service or as a standalone script 
 - Built-in config validation on startup to prevent runtime errors
 
-## Automatic installation and upgrade
+## Installation and upgrade
+
+To install the latest stable release, run as root::
 
 ```sh
-# Run as a root
-INSTALL_SOURCE=github bash -c "$(curl -sSL https://github.com/MorsStefan/proxmox-ip2tag/raw/main/prox-ip2tag_install.sh)"
+INSTALL_SOURCE=github bash -c "$(curl -sSL https://github.com/MorsStefan/proxmox-ip2tag/releases/latest/download/prox-ip2tag)"
 ```
 
 The script will automatically download all necessary files and perform a installation.  
@@ -33,6 +34,7 @@ The original configuration file will remain untouched – the new config will be
 
 `/usr/local/etc/prox-ip2tag.conf_<current_datetime>`
 
+
 ## Manual installation and upgrade
 
 ```
@@ -40,9 +42,9 @@ The original configuration file will remain untouched – the new config will be
 systemctl stop prox-ip2tag.service &>/dev/null
 
 # Download files
-curl -sSL https://github.com/MorsStefan/proxmox-ip2tag/raw/refs/heads/main/prox-ip2tag -o /usr/local/bin/prox-ip2tag
-curl -sSL https://github.com/MorsStefan/proxmox-ip2tag/raw/refs/heads/main/prox-ip2tag.conf -o /usr/local/etc/prox-ip2tag.conf
-curl -sSL https://github.com/MorsStefan/proxmox-ip2tag/raw/refs/heads/main/prox-ip2tag.service -o /etc/systemd/system/prox-ip2tag.service
+curl -sSL https://github.com/MorsStefan/proxmox-ip2tag/releases/latest/download/prox-ip2tag -o /usr/local/bin/prox-ip2tag
+curl -sSL https://github.com/MorsStefan/proxmox-ip2tag/releases/latest/download/prox-ip2tag.conf -o /usr/local/etc/prox-ip2tag.conf
+curl -sSL https://github.com/MorsStefan/proxmox-ip2tag/releases/latest/download/prox-ip2tag.service -o /etc/systemd/system/prox-ip2tag.service
 
 # Enable and run service
 systemctl daemon-reload
@@ -51,6 +53,8 @@ systemctl enable --now prox-ip2tag.service
 # Check status
 systemctl status prox-ip2tag.service
 ```
+
+You can also download the latest stable release, extract it, and run the installer `prox-ip2tag_install.sh`
 
 ## Configuration
 
