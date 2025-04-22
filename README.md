@@ -21,10 +21,10 @@ machines and containers running in a Proxmox environment.
 
 ## Installation and upgrade
 
-To install the latest stable release, run as root::
+To install the latest stable release, run as root:
 
 ```sh
-INSTALL_SOURCE=github bash -c "$(curl -sSL https://github.com/MorsStefan/proxmox-ip2tag/releases/latest/download/prox-ip2tag)"
+INSTALL_SOURCE=github bash -c "$(curl -sSL https://github.com/MorsStefan/proxmox-ip2tag/releases/latest/download/prox-ip2tag_install.sh)"
 ```
 
 The script will automatically download all necessary files and perform a installation.  
