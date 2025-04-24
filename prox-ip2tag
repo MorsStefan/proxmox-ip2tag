@@ -2,7 +2,7 @@
 
 # https://github.com/MorsStefan/proxmox-ip2tag/
 # Łukasz Dyś | Mors Stefan
-# 2025-04-21 | ver 0.7.6
+# 2025-04-24 | ver 0.7.8
 
 #-------------------------------------------------------------------------------
 #          Do not modify this file.
@@ -213,7 +213,7 @@ function update_tags() {
 
     while read -r vmid status _; do
 	
-	! [[ "$vmid" && "$status" ]] && continue
+	[[ "$vmid" && "$status" ]] || continue
 
 	new_tags=()
 	cur_tags=()
@@ -233,20 +233,31 @@ function update_tags() {
 
             # List IP's of VM/LXC
 	    if [ "$type" == 'lxc' ]; then
-        	mapfile -t vm_ips_list < <(lxc-info -n "${vmid}" -i 2>/dev/null | awk '{print $2}')
+        	mapfile -t vm_ips_list < <(lxc-info -n "${vmid}" -i 2>/dev/null | awk '{print $2}' \
+		    | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' \
+		    | grep -v '^127\.0\.0\.1$' )
 	    else
-		# With or without jq
-		if [ $jqi -eq 1 ]; then
-		    [ "$guest_agent" == "1" ] && mapfile -t vm_ips_list < <( qm guest cmd $vmid network-get-interfaces 2>/dev/null \
-            		| jq -r '.[] | .["ip-addresses"]? // [] | .[] | .["ip-address"]')
-		else
-		    [ "$guest_agent" == "1" ] && mapfile -t vm_ips_list < <( qm guest cmd $vmid network-get-interfaces 2>/dev/null \
-            		| grep '"ip-address"' | awk -F'"' '{print $4}' )
-		fi
-	    fi
+		# VMs with guest-agent
+		if [ "$guest_agent" == "1" ]; then
+		    [ $jqi -eq 1 ] && mapfile -t vm_ips_list < <( qm guest cmd "$vmid" network-get-interfaces 2>/dev/null \
+		        | jq -r '.[] | .["ip-addresses"]? // [] | .[] | .["ip-address"]' \
+		        | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' \
+		        | grep -v '^127\.0\.0\.1$' )
 
-            # Skip VM if guest agent=0 [maybe add IP lookup with a simple network scan and ARP table?]
-	    [ "$guest_agent" == "0" ] && verb 4 "$vmid: no changes [ guest agent disabled ]" && continue
+		    # Without jq
+		    # grep '"ip-address"' | awk -F'"' '{print $4}' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' | grep -v '^127\.0\.0\.1$'
+		    [ $jqi -eq 0 ] && mapfile -t vm_ips_list < <( qm guest cmd "$vmid" network-get-interfaces 2>/dev/null \
+			| grep -oE '"ip-address"[[:space:]]*:[[:space:]]*"([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)"' \
+			| awk -F'"' '{print $4}' \
+			| grep -v '127\.\0\.\0\.1' )
+
+		# VMs without guest-agent
+		else
+        	    # Maybe add IP lookup with a simple network scan and ARP table?
+		    verb 4 "$vmid: no changes [ guest agent disabled ]" && continue	
+		fi
+
+	    fi
 
             # Skip if VM/LXC has no IP
 	    [ "$vm_ips_list" == "" ] && verb 2 "$vmid: [Warning] $ttype is running, but no IP was return." && continue
@@ -256,10 +267,7 @@ function update_tags() {
         	in_network_range "$ip" && active_ip_tags+=("$ip") && verb 6 "$vmid: active IP -> '$ip'"
 	    done
 
-	    # Sorting order of IP addresses retrieved from the VM
-	    vm_ips_list=( $(printf "%s\n" "${vm_ips_list[@]}" | sort -u -V -r) )
-
-	# Collect IP from stopped VM/lxC
+	# Collect inactive IP from stopped VM/lxC
 	else
     	    for cur_tag in "${cur_tags[@]}"; do
         	in_network_range "$cur_tag" && inactive_ip_tags+=("$cur_tag") && verb 6 "$vmid: inactive IP -> '$cur_tag'"
@@ -300,7 +308,17 @@ function update_tags() {
 		    new_tags+=("$cur_tag")
 		done
 	    fi
-	    
+	    	    
+	    # new to test
+	    # Conditional sorting of IP addresses retrieved from running VMs
+	    if [ "$force_ip_tags_pos" == "1" ]; then
+        	if [ "$ip_tags_pos" == "last" ]; then
+		    vm_ips_list=( $(printf "%s\n" "${vm_ips_list[@]}" | sort -u -V -r) )
+		else
+		    vm_ips_list=( $(printf "%s\n" "${vm_ips_list[@]}" | sort -u -V) )
+	        fi
+	    fi
+
 	    # Add active IP tags from running VM [if not ignored] at the begin or end
 	    for vm_ip in "${vm_ips_list[@]}"; do
 		if in_network_range "$vm_ip" && ! is_ignored_tag "$vm_ip"; then
@@ -349,6 +367,12 @@ function update_tags() {
 		        ip_tags_range_ordered+=("$cur_tag")
 		    fi
 		done
+
+		# new to test
+		# Conditional sorting of IP addresses retrieved from stopped VMs
+		if [ "$force_ip_tags_pos" == "1" ]; then
+		    ip_tags_range_ordered=( $(printf "%s\n" "${ip_tags_range_ordered[@]}" | sort -u -V -r) )
+		fi
 
 		# Placing tags as defined by ip_tags_pos
 		if [ "$ip_tags_pos" == "last" ]; then
