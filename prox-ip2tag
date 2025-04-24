@@ -69,7 +69,6 @@ VERBOSE=3
 #=[ Functions ]====================================================
 
 
-
 function is_num() { [[ "$1" =~ ^-?([1-9][0-9]*|0)$ ]] }
 
 function in_arr () { local e IFS; for e in "${@:2}"; do [ "$e" == "$1" ] && return 0; done; return 1; }
@@ -142,7 +141,8 @@ function verb() {
 
 
 function join_tags() {
-    [ -z "${*}" ] || echo "${*}" | xargs | tr ' ' ','; 
+    #[ -z "${*}" ] || echo "${*}" | xargs | tr ' ' ',';
+    [ -z "${*}" ] || printf "%s\n" "$*" | xargs | tr ' ' ','
     return
 }
 
@@ -239,18 +239,19 @@ function update_tags() {
 	    else
 		# VMs with guest-agent
 		if [ "$guest_agent" == "1" ]; then
-		    [ $jqi -eq 1 ] && mapfile -t vm_ips_list < <( qm guest cmd "$vmid" network-get-interfaces 2>/dev/null \
-		        | jq -r '.[] | .["ip-addresses"]? // [] | .[] | .["ip-address"]' \
-		        | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' \
-		        | grep -v '^127\.0\.0\.1$' )
-
-		    # Without jq
-		    # grep '"ip-address"' | awk -F'"' '{print $4}' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' | grep -v '^127\.0\.0\.1$'
-		    [ $jqi -eq 0 ] && mapfile -t vm_ips_list < <( qm guest cmd "$vmid" network-get-interfaces 2>/dev/null \
-			| grep -oE '"ip-address"[[:space:]]*:[[:space:]]*"([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)"' \
-			| awk -F'"' '{print $4}' \
-			| grep -v '127\.\0\.\0\.1' )
-
+		    if [ $jqi -eq 1 ]; then
+			mapfile -t vm_ips_list < <( qm guest cmd "$vmid" network-get-interfaces 2>/dev/null \
+		    	    | jq -r '.[] | .["ip-addresses"]? // [] | .[] | .["ip-address"]' \
+		    	    | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' \
+		    	    | grep -v '^127\.0\.0\.1$' )
+		    else
+			# Without jq
+			# grep '"ip-address"' | awk -F'"' '{print $4}' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' | grep -v '^127\.0\.0\.1$'
+			mapfile -t vm_ips_list < <( qm guest cmd "$vmid" network-get-interfaces 2>/dev/null \
+			    | grep -oE '"ip-address"[[:space:]]*:[[:space:]]*"([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)"' \
+			    | awk -F'"' '{print $4}' \
+			    | grep -v '127\.0\.\0\.1' )
+		    fi
 		# VMs without guest-agent
 		else
         	    # Maybe add IP lookup with a simple network scan and ARP table?
@@ -390,7 +391,7 @@ function update_tags() {
 	new_tags_tmp=$(join_tags ${new_tags[*]})
 
 	verb 5 "$vmid: cur tags tmp: '$cur_tags_tmp'"
-	verb 5 "$vmid: new tags tmp: '$cur_tags_tmp'"
+	verb 5 "$vmid: new tags tmp: '$new_tags_tmp'"
 
         if [ "$ordering" == "config" ]; then
             if [[ "$new_tags_tmp" == "$cur_tags_tmp" ]]; then
