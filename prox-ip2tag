@@ -25,7 +25,7 @@ ignored_vm_lxc_list=(
 )
 
 # Do not auto add or remove these IP tags for VMs and LXCs, do not change their color.
-ignored_ip_tag_list=(
+ignored_ip_tags_list=(
     127.0.0.1
 )
 
@@ -57,6 +57,10 @@ tag_inactive_bgcolor='aaaaaa'
 # cfg_files = fast (reads local config files), qm_pct = use default Proxmox tools.
 read_vm_lxc_config_using='cfg_files'
 
+# Method for creating list of running VMs and LXCs: [ custom | qm_pct ].
+# custom = safe and x20 faster then 'qm_pct', qm_pct = use default Proxmox tools.
+list_vm_lxc_using='custom'
+
 # Prefixes each output line with a timestamp - useful for terminal logging.
 display_timestamp=0
 
@@ -78,7 +82,7 @@ function in_network_range() {
     valid_ipv4 "$1" && ip_in_networks_range "$1" && return 0 || return 1
 }
 
-function is_ignored_tag() { [ -n "$1" ] && in_arr "$1" "${ignored_ip_tag_list[@]}"; }
+function is_ignored_tag() { [ -n "$1" ] && in_arr "$1" "${ignored_ip_tags_list[@]}"; }
 
 function is_ignored_vm() {
     [ -z "$1" ] && return 1
@@ -140,6 +144,45 @@ function verb() {
 #=[ VM/LXC Countainers ]================================================
 
 
+
+# [ 0,026 ] 21x faster then 'pct list'
+function list_lxc_no_pct() {
+    local row name status vmid cfg_file cfg_dir="/etc/pve/lxc"
+
+    [[ ! -d "$cfg_dir" ]] && return 1
+    echo -e "VMID\tStatus\tName"
+    for cfg_file in "$cfg_dir"/*.conf; do
+        vmid="${cfg_file##*/}"; vmid="${vmid%.conf}"
+        name=$(awk -F ': *' '/^hostname:/ { print $2; exit }' "$cfg_file")
+        status=$(lxc-info -n "$vmid" | awk -F ': *' '/^State:/ { print tolower($2); exit }') #'
+        echo -e "${vmid}\t${status}\t${name:-unknown}"
+    done
+}
+
+list_qemu_no_qm() {
+    local cfg_file vmid name status cfg_dir="/etc/pve/qemu-server"
+
+    [ ! -d "$cfg_dir" ] && return 1
+    printf "      VMID NAME                 STATUS\n"
+    for cfg_file in "$cfg_dir"/*.conf; do
+        [[ -e "$cfg_file" ]] || continue
+        vmid="${cfg_file##*/}"
+        vmid="${vmid%.conf}"
+        name=$(awk -F ': *' '/^name:/ { print $2; exit }' "$cfg_file")
+        pid_file="/run/qemu-server/${vmid}.pid"
+        if [[ -f "$pid_file" ]]; then
+            pid=$(< "$pid_file")
+            if [[ -n "$pid" && -d "/proc/$pid" ]] && tr '\0' ' ' < "/proc/$pid/cmdline" | grep -q -- "-id $vmid"; then
+                status="running"
+            else
+                status="stopped"
+            fi
+        else
+            status="stopped"
+        fi
+        printf "%10s %-20s %-10s\n" "$vmid" "${name:-unknown}" "$status"
+    done
+}
 
 function join_tags() {
     #[ -z "${*}" ] || echo "${*}" | xargs | tr ' ' ',';
@@ -203,12 +246,20 @@ function update_tags() {
     verb 4; verb 4 "$ttype update tags"; verb 4 "- - - - - - - -"
 
     if [ "$type" == 'lxc' ]; then
-    	cmd_out="$( pct list )"
-	[ $? -gt 0 ] && verb 1 "pct list: [Critical error] reading container list failed. Exiting." && exit 1
+	if [ "$list_vm_lxc_using" == 'custom' ]; then
+	    cmd_out="$( list_lxc_no_pct )"
+	else
+	    cmd_out="$( pct list )"
+	fi
+	[ $? -gt 0 ] && verb 1 "pct list - '$list_vm_lxc_using': [Critical error] reading container list failed. Exiting." && exit 1
 	vm_list="$( echo "$cmd_out" | awk 'NR>1 {print $1, $2}' )"
     else
-    	cmd_out="$( qm list )"
-	[ $? -gt 0 ] && verb 1 "qm list: [Critical error] reading virtual machine list failed. Exiting." && exit 1
+	if [ "$list_vm_lxc_using" == 'custom' ]; then
+	    cmd_out="$( list_qemu_no_qm )"
+	else
+    	    cmd_out="$( qm list )"
+	fi
+	[ $? -gt 0 ] && verb 1 "qm list - '$list_vm_lxc_using': [Critical error] reading virtual machine list failed. Exiting." && exit 1
 	vm_list="$( echo "$cmd_out" | awk 'NR>1 {print $1, $3}' )"
     fi
 
@@ -573,6 +624,9 @@ function p_init() {
     [[ ! "$read_vm_lxc_config_using" =~ ^(cfg_files|qm_pct)$ ]] \
 	&& verb 1 "[Critical error] Bad value for: read_vm_lxc_config_using -> '$read_vm_lxc_config_using'" && exit 1
 
+    [[ ! "$list_vm_lxc_using" =~ ^(custom|qm_pct)$ ]] \
+	&& verb 1 "[Critical error] Bad value for: list_vm_lxc_using -> '$list_vm_lxc_using'" && exit 1
+
     [[ ! "$inactive_ip_tag_action" =~ ^(change_color|none|remove)$ ]] \
 	&& verb 1 "[Critical error] Bad value for: inactive_ip_tag_action -> '$inactive_ip_tag_action'" && exit 1
 
@@ -610,8 +664,8 @@ function p_init() {
 	! valid_cidr "$val" && verb 1 "[Critical error] Bad value in: networks_range -> '$val'" && exit 1
     done
 
-    for val in "${ignored_ip_tag_list[@]}"; do
-	! valid_ipv4 "$val" && verb 1 "[Critical error] Bad value in: ignored_ip_tag_list -> '$val'" && exit 1
+    for val in "${ignored_ip_tags_list[@]}"; do
+	! valid_ipv4 "$val" && verb 1 "[Critical error] Bad value in: ignored_ip_tags_list -> '$val'" && exit 1
     done
 
     update_ip_tags_last_run=0
