@@ -32,7 +32,7 @@ The script will automatically download all necessary files and perform a install
 If a previous version of the program is detected, it will be replaced **only after confirmation**.  
 The original configuration file will remain untouched – the new config will be saved as:
 
-`/usr/local/etc/prox-ip2tag.conf_<current_datetime>`
+`/usr/local/etc/prox-ip2tag.conf_new`
 
 
 ## Manual installation and upgrade

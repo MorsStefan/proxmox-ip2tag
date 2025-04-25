@@ -114,13 +114,9 @@ else
 fi
 echo
 
-# Copy config file (only if it doesn't exist)
+# Copy config file
 if [ -f "$CONF_DEST" ]; then
-    new_cfg_file="${CONF_DEST}_$(date +'%F_%T')"
-#    echo "Config file '$CONF_DEST' already exists and was not overwritten."
-#    copy "$CONF_SRC" "$new_cfg_file"
-#    echo "New config, was copied as: '$new_cfg_file'"
-
+    new_cfg_file="${CONF_DEST}_new"
     echo "Config file '$CONF_DEST' already exists."
     copy "$CONF_SRC" "$new_cfg_file"
     echo "It was not overwritten. A new version was saved as:"

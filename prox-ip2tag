@@ -2,71 +2,73 @@
 
 # https://github.com/MorsStefan/proxmox-ip2tag/
 # Łukasz Dyś | Mors Stefan
-# 2025-04-24 | ver 0.7.8
+# 2025-04-26 | ver 0.7.8
 
 #-------------------------------------------------------------------------------
 #          Do not modify this file.
 #          Instead, edit: '/usr/local/etc/prox-ip2tag.conf'
 #-------------------------------------------------------------------------------
 
-# Defines which guest types to process: 1 = LXC, 2 = VM, 3 = both.
-use_ip_tags_for=3
+# Defines which guest types to process: 1 = LXCs, 2 = VMs, 3 = both.
+GUEST_TYPE=3
 
-# The IP address range (in CIDR format) in which IP must be located in order to
-# be automatically added or removed as IP tag.  Each range on a new line.
+# Single addresses and network ranges in CIDR format in which IP must be located
+# in order to be automatically added or removed as IP tag.
+
 # Well known private networks: 10.0.0.0/24 192.168.0.0/24
 # Use 0.0.0.0/0 to search for every possible IP'a
-networks_range=(
+NETWORK_RANGES=(
     0.0.0.0/0
 )
 
-# Ignore these LXCs and VMs. 
-ignored_vm_lxc_list=(
-)
-
 # Do not auto add or remove these IP tags for VMs and LXCs, do not change their color.
-ignored_ip_tags_list=(
+# Accepts both: single addresses and network ranges in CIDR format
+NETWORK_RANGES_IGNORED=(
     127.0.0.1
 )
 
+# Ignore these LXCs and VMs. 
+IGNORED_VMIDS=(
+)
+
 # Allow changing Proxmox default tags colors: [ 0 | 1 ].
-# Overwrites inactive_ip_tag_action when set to change_color or none.
-change_tags_colors=1
+# Overwrites INACTIVE_IP_TAGS_ACTION when set to change_color or none.
+CHANGE_IP_TAGS_COLORS=1
 
 # What to do with IP tags when VM/LXC is stopped: [ remove | change_color | none ].
-inactive_ip_tag_action='change_color'
+INACTIVE_IP_TAGS_ACTION='change_color'
 
 # Time in seconds between IP tags updates. Must be > 0. Minimum 60 is recommended.
-update_ip_tags_interval=60
+UPDATE_IP_TAGS_INTERVAL=1
 
 # Controls the placement of newly added IP tags: [ first | last ].
 # Require: Datacenter->Options->Tag Style Override->Ordering='Configuration'
-ip_tags_pos='first'
+IP_TAGS_POS='first'
 
-# Enforces a fixed position for IP tags according to the value of the 'ip_tags_pos'.
+# Enforces a fixed position for IP tags according to the value of the 'IP_TAGS_POS'.
 # Require: Datacenter->Options->Tag Style Override->Ordering='Configuration'
-force_ip_tags_pos=1
+FORCE_IP_TAGS_POS=1
 
 # Active and inactive tag colors (hex)
-tag_color='ffffff'
-tag_bgcolor='000000'
-tag_inactive_color='ffffff'
-tag_inactive_bgcolor='aaaaaa'
+TAG_COLOR='ffffff'
+TAG_BGCOLOR='4c4c4c'
+TAG_INACTIVE_COLOR='ffffff'
+TAG_INACTIVE_BGCOLOR='aaaaaa'
 
 # Method for reading tags and selected config options: [ cfg_files | qm_pct ].
 # cfg_files = fast (reads local config files), qm_pct = use default Proxmox tools.
-read_vm_lxc_config_using='cfg_files'
+READ_VM_LXC_CONFIG_USING='cfg_files'
 
 # Method for creating list of running VMs and LXCs: [ custom | qm_pct ].
 # custom = safe and x20 faster then 'qm_pct', qm_pct = use default Proxmox tools.
-list_vm_lxc_using='custom'
+LIST_VM_LXC_USING='custom'
 
 # Prefixes each output line with a timestamp - useful for terminal logging.
-display_timestamp=0
+DISPLAY_TIMESTAMP=0
 
 # Verbosity level of log messages: [ 0 | 1 | 2 | 3 | 4 | 5 | 6 ].
 # 0-reserved, 1-errors, 2-warnings|notice, 3-info, 4-verbose, 5-debug, 6-maximum
-VERBOSE=3
+VERBOSE=4
 
 
 
@@ -78,15 +80,15 @@ function is_num() { [[ "$1" =~ ^-?([1-9][0-9]*|0)$ ]] }
 
 function in_arr () { local e IFS; for e in "${@:2}"; do [ "$e" == "$1" ] && return 0; done; return 1; }
 
-function in_network_range() {
-    valid_ipv4 "$1" && ip_in_networks_range "$1" && return 0 || return 1
-}
+function in_network_range() { valid_ipv4 "$1" && find_ip_in_networks "$1" "${NETWORK_RANGES[@]}"; }
 
-function is_ignored_tag() { [ -n "$1" ] && in_arr "$1" "${ignored_ip_tags_list[@]}"; }
+function is_ignored_tag() { valid_ipv4 "$1" && find_ip_in_networks "$1" "${NETWORK_RANGES_IGNORED[@]}"; }
+
+#function is_ignored_tag() { [ -n "$1" ] && in_arr "$1" "${NETWORK_RANGES_IGNORED[@]}"; }
 
 function is_ignored_vm() {
     [ -z "$1" ] && return 1
-    [[ " ${ignored_vm_lxc_list[*]} " == *" ${1} "* ]] && return 0 || return 1
+    [[ " ${IGNORED_VMIDS[*]} " == *" ${1} "* ]] && return 0 || return 1
 }
 
 function is_active_ip() { [[ -n "$2" ]] && in_arr "$@"; }
@@ -115,9 +117,12 @@ function valid_cidr() {
     return 1
 }
 
-function ip_in_networks_range() {
-    local ip="$1"
-    for network in "${networks_range[@]}"; do
+function find_ip_in_networks() {
+    local ip="$1" tmp_arr=("${@:2}")
+    [ -z "$tmp_arr" ] && return 1
+#    echo "ip: '$ip' tmp_arr: '${tmp_arr[*]}'"
+    for network in "${tmp_arr[@]}"; do
+	valid_cidr "$network" || continue
 	local ip_num subnet_num mask
 	IFS=. read -r a b c d <<< "$ip"
 	ip_num=$(( (a<<24)+(b<<16)+(c<<8)+d ))
@@ -130,9 +135,12 @@ function ip_in_networks_range() {
     return 1
 }
 
+#in_network_range '172.18.0.1' 'ignored' && echo tak || echo nie
+#exit
+
 function verb() {
     local dat txt="$2"
-    [ "$display_timestamp" == "1" ] && dat="$(date +'%F %T') | "
+    [ "$DISPLAY_TIMESTAMP" == "1" ] && dat="$(date +'%F %T') | "
     if is_num "$1" && (( VERBOSE >= $1 )); then
 	[ "$2" ] && echo "$dat$txt" || echo "$dat"
     fi
@@ -198,7 +206,7 @@ find_tags_for_guest() {
     guest_tags=()
     guest_agent=''
 
-    if [ "$read_vm_lxc_config_using" == 'qm_pct' ]; then
+    if [ "$READ_VM_LXC_CONFIG_USING" == 'qm_pct' ]; then
 	if [ "$type" == 'lxc' ]; then
 	    cmd_out="$(pct config $vmid)"
 	    [ $? -gt 0 ] && verb 1 "pct config $vmid: [Critical error] read config failed. Exiting." && exit 1
@@ -246,20 +254,20 @@ function update_tags() {
     verb 4; verb 4 "$ttype update tags"; verb 4 "- - - - - - - -"
 
     if [ "$type" == 'lxc' ]; then
-	if [ "$list_vm_lxc_using" == 'custom' ]; then
+	if [ "$LIST_VM_LXC_USING" == 'custom' ]; then
 	    cmd_out="$( list_lxc_no_pct )"
 	else
 	    cmd_out="$( pct list )"
 	fi
-	[ $? -gt 0 ] && verb 1 "pct list - '$list_vm_lxc_using': [Critical error] reading container list failed. Exiting." && exit 1
+	[ $? -gt 0 ] && verb 1 "pct list - '$LIST_VM_LXC_USING': [Critical error] reading container list failed. Exiting." && exit 1
 	vm_list="$( echo "$cmd_out" | awk 'NR>1 {print $1, $2}' )"
     else
-	if [ "$list_vm_lxc_using" == 'custom' ]; then
+	if [ "$LIST_VM_LXC_USING" == 'custom' ]; then
 	    cmd_out="$( list_qemu_no_qm )"
 	else
     	    cmd_out="$( qm list )"
 	fi
-	[ $? -gt 0 ] && verb 1 "qm list - '$list_vm_lxc_using': [Critical error] reading virtual machine list failed. Exiting." && exit 1
+	[ $? -gt 0 ] && verb 1 "qm list - '$LIST_VM_LXC_USING': [Critical error] reading virtual machine list failed. Exiting." && exit 1
 	vm_list="$( echo "$cmd_out" | awk 'NR>1 {print $1, $3}' )"
     fi
 
@@ -333,7 +341,7 @@ function update_tags() {
 	    verb 6 "$vmid: vm_ips_list: '${vm_ips_list[*]}'"
 
 	    # I know it could have been done in one loop...
-	    if [ "$force_ip_tags_pos" == "0" ]; then
+	    if [ "$FORCE_IP_TAGS_POS" == "0" ]; then
 		for cur_tag in "${cur_tags[@]}"; do
 		    verb 5 "$vmid: cur_tag -> $cur_tag"
         	    # Add ignored tags
@@ -364,8 +372,8 @@ function update_tags() {
 	    	    
 	    # new to test
 	    # Conditional sorting of IP addresses retrieved from running VMs
-	    if [ "$force_ip_tags_pos" == "1" ]; then
-        	if [ "$ip_tags_pos" == "last" ]; then
+	    if [ "$FORCE_IP_TAGS_POS" == "1" ]; then
+        	if [ "$IP_TAGS_POS" == "last" ]; then
 		    vm_ips_list=( $(printf "%s\n" "${vm_ips_list[@]}" | sort -u -V -r) )
 		else
 		    vm_ips_list=( $(printf "%s\n" "${vm_ips_list[@]}" | sort -u -V) )
@@ -376,7 +384,7 @@ function update_tags() {
 	    for vm_ip in "${vm_ips_list[@]}"; do
 		if in_network_range "$vm_ip" && ! is_ignored_tag "$vm_ip"; then
 		    if ! is_active_ip "$vm_ip" "${new_tags[@]}"; then
-                        if [ "$ip_tags_pos" == "last" ]; then
+                        if [ "$IP_TAGS_POS" == "last" ]; then
 			    new_tags+=("${vm_ip}")
 			else
 			    new_tags=("${vm_ip}" ${new_tags[*]})
@@ -388,7 +396,7 @@ function update_tags() {
 
 	# Stopped VM [ new wersion with sorting ]
 	else
-	    if [ "$inactive_ip_tag_action" == "remove" ]; then
+	    if [ "$INACTIVE_IP_TAGS_ACTION" == "remove" ]; then
 		for cur_tag in "${cur_tags[@]}"; do
 		     # Add ignored tags
 		    is_ignored_tag "$cur_tag" && new_tags+=("$cur_tag") && continue
@@ -398,7 +406,7 @@ function update_tags() {
 		# verb 4 "$vmid: no changes" && continue # uncomment to disable sorting stopped
 		# Sorting stopped VM/LXC
 
-		[ "$force_ip_tags_pos" == "0" ] && verb 4 "$vmid: no changes" && continue
+		[ "$FORCE_IP_TAGS_POS" == "0" ] && verb 4 "$vmid: no changes" && continue
 
 		# Remove IP tags from the range, but keep ignored ones
 		for cur_tag in "${cur_tags[@]}"; do
@@ -423,12 +431,12 @@ function update_tags() {
 
 		# new to test
 		# Conditional sorting of IP addresses retrieved from stopped VMs
-		if [ "$force_ip_tags_pos" == "1" ]; then
+		if [ "$FORCE_IP_TAGS_POS" == "1" ]; then
 		    ip_tags_range_ordered=( $(printf "%s\n" "${ip_tags_range_ordered[@]}" | sort -u -V -r) )
 		fi
 
-		# Placing tags as defined by ip_tags_pos
-		if [ "$ip_tags_pos" == "last" ]; then
+		# Placing tags as defined by IP_TAGS_POS
+		if [ "$IP_TAGS_POS" == "last" ]; then
 		    new_tags=( "${other_tags[@]}" "${ip_tags_range_ordered[@]}" )
 		else
 		    new_tags=( "${ip_tags_range_ordered[@]}" "${other_tags[@]}" )
@@ -479,12 +487,12 @@ function updates_vm_tags_and_tags_colors() {
     active_ip_tags=()
     inactive_ip_tags=() 
 
-    (( use_ip_tags_for & 1 )) && update_tags 'lxc'
-    (( use_ip_tags_for & 2 )) && update_tags 'vm'
+    (( GUEST_TYPE & 1 )) && update_tags 'lxc'
+    (( GUEST_TYPE & 2 )) && update_tags 'vm'
 
     verb 4; verb 4 "Tags colors"; verb 4 "- - - - - - - -"
 
-    [ $change_tags_colors -eq 0 ] && verb 4 "change_tags_colors: option disabled." && return
+    [ $CHANGE_IP_TAGS_COLORS -eq 0 ] && verb 4 "CHANGE_IP_TAGS_COLORS: option disabled." && return
 
     read_cluster_config
     cur_color_map="$color_map"
@@ -493,13 +501,13 @@ function updates_vm_tags_and_tags_colors() {
     inactive_ip_tags=( $(printf "%s\n" "${inactive_ip_tags[@]}" | sort -u -V) )
 
     # Change tags color [inactive]
-    if [ "$inactive_ip_tag_action" == 'change_color' ]; then
+    if [ "$INACTIVE_IP_TAGS_ACTION" == 'change_color' ]; then
 	for inact_ip in "${inactive_ip_tags[@]}"; do
 	    if is_ignored_tag "$inact_ip"; then
 		verb 6  "inactive: $inact_ip [ ignored ]"
 	    else
 		verb 6  "inactive: $inact_ip"
-		color_map_update "$inact_ip:$tag_inactive_bgcolor:$tag_inactive_color"
+		color_map_update "$inact_ip:$TAG_INACTIVE_BGCOLOR:$TAG_INACTIVE_COLOR"
 	    fi
 	done
     fi
@@ -510,7 +518,7 @@ function updates_vm_tags_and_tags_colors() {
 	    verb 6  "active: $act_ip [ ignored ]"
 	else
 	    verb 6  "active: $act_ip"
-	    color_map_update "$act_ip:$tag_bgcolor:$tag_color"
+	    color_map_update "$act_ip:$TAG_BGCOLOR:$TAG_COLOR"
 	fi
     done
 
@@ -592,7 +600,7 @@ function build_config_string() {
 
 
 function p_init() {
-    local cmd var LOCK_FILE="/var/lock/prox-ip2tag.lock"
+    local tmp=() cmd var val LOCK_FILE="/var/lock/prox-ip2tag.lock"
 
     exec 200>"$LOCK_FILE"
     flock -n 200 || {
@@ -618,55 +626,65 @@ function p_init() {
     fi
 
     # Checking config values
-    [[ ! "$use_ip_tags_for" =~ ^[123]$ ]] \
-	&& verb 1 "[Critical error] Bad value for: use_ip_tags_for -> '$use_ip_tags_for'" && exit 1
+    [[ ! "$GUEST_TYPE" =~ ^[123]$ ]] \
+	&& verb 1 "[Critical error] Bad value for: GUEST_TYPE -> '$GUEST_TYPE'" && exit 1
 
-    [[ ! "$read_vm_lxc_config_using" =~ ^(cfg_files|qm_pct)$ ]] \
-	&& verb 1 "[Critical error] Bad value for: read_vm_lxc_config_using -> '$read_vm_lxc_config_using'" && exit 1
+    [[ ! "$READ_VM_LXC_CONFIG_USING" =~ ^(cfg_files|qm_pct)$ ]] \
+	&& verb 1 "[Critical error] Bad value for: READ_VM_LXC_CONFIG_USING -> '$READ_VM_LXC_CONFIG_USING'" && exit 1
 
-    [[ ! "$list_vm_lxc_using" =~ ^(custom|qm_pct)$ ]] \
-	&& verb 1 "[Critical error] Bad value for: list_vm_lxc_using -> '$list_vm_lxc_using'" && exit 1
+    [[ ! "$LIST_VM_LXC_USING" =~ ^(custom|qm_pct)$ ]] \
+	&& verb 1 "[Critical error] Bad value for: LIST_VM_LXC_USING -> '$LIST_VM_LXC_USING'" && exit 1
 
-    [[ ! "$inactive_ip_tag_action" =~ ^(change_color|none|remove)$ ]] \
-	&& verb 1 "[Critical error] Bad value for: inactive_ip_tag_action -> '$inactive_ip_tag_action'" && exit 1
+    [[ ! "$INACTIVE_IP_TAGS_ACTION" =~ ^(change_color|none|remove)$ ]] \
+	&& verb 1 "[Critical error] Bad value for: INACTIVE_IP_TAGS_ACTION -> '$INACTIVE_IP_TAGS_ACTION'" && exit 1
 
-    [[ ! "$ip_tags_pos" =~ ^(first|last)$ ]] \
-	&& verb 1 "[Critical error] Bad value for: ip_tags_pos -> '$ip_tags_pos'" && exit 1
+    [[ ! "$IP_TAGS_POS" =~ ^(first|last)$ ]] \
+	&& verb 1 "[Critical error] Bad value for: IP_TAGS_POS -> '$IP_TAGS_POS'" && exit 1
 
-    [[ ! "$change_tags_colors" =~ ^[01]$ ]] \
-	&& verb 1 "[Critical error] Bad value for: change_tags_colors -> '$change_tags_colors'" && exit 1
+    [[ ! "$CHANGE_IP_TAGS_COLORS" =~ ^[01]$ ]] \
+	&& verb 1 "[Critical error] Bad value for: CHANGE_IP_TAGS_COLORS -> '$CHANGE_IP_TAGS_COLORS'" && exit 1
 
-    [[ ! "$display_timestamp" =~ ^[01]$ ]] \
-	&& verb 1 "[Critical error] Bad value for: display_timestamp -> '$display_timestamp'" && exit 1
+    [[ ! "$DISPLAY_TIMESTAMP" =~ ^[01]$ ]] \
+	&& verb 1 "[Critical error] Bad value for: DISPLAY_TIMESTAMP -> '$DISPLAY_TIMESTAMP'" && exit 1
 
-    [[ ! "$force_ip_tags_pos" =~ ^[01]$ ]] \
-	&& verb 1 "[Critical error] Bad value for: force_ip_tags_pos -> '$force_ip_tags_pos'" && exit 1
+    [[ ! "$FORCE_IP_TAGS_POS" =~ ^[01]$ ]] \
+	&& verb 1 "[Critical error] Bad value for: FORCE_IP_TAGS_POS -> '$FORCE_IP_TAGS_POS'" && exit 1
 
     [[ ! "$VERBOSE" =~ ^[0123456]$ ]] \
 	&& verb 1 "[Critical error] Bad value for: VERBOSE -> '$VERBOSE'" && exit 1
 
-    if ! [[ "$update_ip_tags_interval" =~ ^[0-9]+$ && "$update_ip_tags_interval" -gt 0 ]]; then
-	verb 1 "[Critical error] Bad value for: update_ip_tags_interval -> '$update_ip_tags_interval'"
+    if ! [[ "$UPDATE_IP_TAGS_INTERVAL" =~ ^[0-9]+$ && "$UPDATE_IP_TAGS_INTERVAL" -gt 0 ]]; then
+	verb 1 "[Critical error] Bad value for: UPDATE_IP_TAGS_INTERVAL -> '$UPDATE_IP_TAGS_INTERVAL'"
 	exit 1
     fi
 
-    for var in tag_inactive_color tag_inactive_bgcolor tag_color tag_bgcolor; do
+    for var in TAG_INACTIVE_COLOR TAG_INACTIVE_BGCOLOR TAG_COLOR TAG_BGCOLOR; do
 	val="${!var}"
 	[[ ! "$val" =~ ^[0-9a-fA-F]{6}$ ]] && verb 1 "[Critical error] Bad value for: $var -> '$val'" && exit 1
 	declare -gl "$var=${val}"
     done
 
-    for val in "${ignored_vm_lxc_list[@]}"; do
-	! is_num "$val" && verb 1 "[Critical error] Bad value in: ignored_vm_lxc_list -> '$val'" && exit 1
+    for val in "${IGNORED_VMIDS[@]}"; do
+	! is_num "$val" && verb 1 "[Critical error] Bad value in: IGNORED_VMIDS -> '$val'" && exit 1
     done
 
-    for val in "${networks_range[@]}"; do
-	! valid_cidr "$val" && verb 1 "[Critical error] Bad value in: networks_range -> '$val'" && exit 1
+    tmp=()
+    for val in "${NETWORK_RANGES[@]}"; do
+	valid_ipv4 "$val" && tmp+=("$val/32") && continue
+	valid_cidr "$val" && tmp+=("$val") && continue
+	verb 1 "[Critical error] Bad value in: NETWORK_RANGES -> '$val'"
+	exit 1
     done
+    NETWORK_RANGES=("${tmp[@]}")
 
-    for val in "${ignored_ip_tags_list[@]}"; do
-	! valid_ipv4 "$val" && verb 1 "[Critical error] Bad value in: ignored_ip_tags_list -> '$val'" && exit 1
+    tmp=()
+    for val in "${NETWORK_RANGES_IGNORED[@]}"; do
+	valid_ipv4 "$val" && tmp+=("$val/32") && continue
+	valid_cidr "$val" && tmp+=("$val") && continue
+	verb 1 "[Critical error] Bad value in: NETWORK_RANGES_IGNORED -> '$val'"
+	exit 1
     done
+    NETWORK_RANGES_IGNORED=("${tmp[@]}")
 
     update_ip_tags_last_run=0
     read_cluster_config
@@ -677,7 +695,7 @@ function main() {
 
     while true; do
 	now="$(date +%s)"
-	if (( now - update_ip_tags_last_run >= update_ip_tags_interval )); then
+	if (( now - update_ip_tags_last_run >= UPDATE_IP_TAGS_INTERVAL )); then
 	    updates_vm_tags_and_tags_colors
 	    update_ip_tags_last_run=$(date +%s)
 	fi
