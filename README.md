@@ -11,13 +11,13 @@ machines and containers running in a Proxmox environment.
 - Separate color settings for active and inactive IP tags  
 - Option to include only containers, only virtual machines, or both  
 - Ability to enforce the position of added tags (at the beginning or end)  
-- IP tag sorting for both running and stopped guests
+- IP tag sorting for both running and stopped guests  
 - Define actions for inactive IPs (change color, remove, or do nothing)  
 - Ability to filter tagged IPs based on selected CIDR networks  
-- Separate ignore lists for IPs and VM/LXC IDs  
+- Ignore lists for IPs, network ranges and VM/LXC IDs  
 - Configurable interval for checking and updating IP tags  
-- Can run as a systemd service or as a standalone script 
-- Built-in config validation on startup to prevent runtime errors
+- Can run as a systemd service or as a standalone script  
+- Built-in config validation on startup to prevent runtime errors  
 
 ## Installation and upgrade
 
@@ -62,23 +62,28 @@ The configuration file with all available options is located at: `/usr/local/etc
 
 | Option                    | Default         | Description                                                                |
 |---------------------------|-----------------|----------------------------------------------------------------------------|
-| `use_ip_tags_for`         | `3`             | Defines which guest types to process: 1 = LXC, 2 = VM, 3 = both.           |
-| `networks_range`          | `(0.0.0.0/0)`   | The IP address range (in CIDR format) in which IP must be located in order to be automatically added or removed as IP tag. |
-| `ignored_vm_lxc_list`     | `()`            | Ignore these LXCs and VMs.                                                 |
-| `ignored_ip_tags_list`    | `(127.0.0.1)`   | Do not auto add or remove these IP tags for VMs and LXCs, do not change their color. |
-| `inactive_ip_tag_action`  | `change_color`  | What to do with IP tags when VM/LXC is stopped: \[ `remove` \| `change_color` \| `none` \]. |
-| `change_tags_colors`      | `1`             | Allow changing Proxmox default tags colors: \[ 0 \| 1 \].<br />Overwrites `inactive_ip_tag_action` when set to `change_color` or `none`. |
-| `update_ip_tags_interval` | `60`            | Time in seconds between IP tags updates. Must be > 0. Minimum 60 is recommended. |
-| `ip_tags_pos`             | `first`         | Controls the placement of newly added IP tags: \[ `first` \| `last` \].<br />Require: Datacenter->Options->Tag Style Override->Ordering='Configuration'.  |
-| `force_ip_tags_pos`       | `1`             | Enforces a fixed position for IP tags according to the value of the `ip_tags_pos`.<br /> Require: Datacenter->Options->Tag Style Override->Ordering='Configuration'. |
-| `tag_color`               | `ffffff`        | Foreground color for active IPs (hex).                                     |
-| `tag_bgcolor`             | `000000`        | Background color for active IPs (hex).                                     |
-| `tag_inactive_color`      | `ffffff`        | Foreground color for inactive IPs (hex).                                   |
-| `tag_inactive_bgcolor`    | `aaaaaa`        | Background color for inactive IPs (hex).                                   |
-| `read_vm_lxc_config_using`| `cfg_files`     | Method for reading tags and selected config options: \[ cfg_files \| qm_pct \].<br />cfg_files = fast (reads local config files), qm_pct = use default Proxmox tools. |
-| `list_vm_lxc_using`       | `custom`        | Method for creating list of running VMs and LXCs: \[ custom \| qm_pct \].<br />custom = safe and x20 faster then 'qm_pct', qm_pct = use default Proxmox tools. |
-| `display_timestamp`       | `0`             | Prefixes each output line with a timestamp - useful for terminal logging.  |
-| `VERBOSE`                 | `3`             | Verbosity level of log messages: \[ 0 \| 1 \| 2 \| 3 \| 4 \| 5 \| 6 \].<br />0-reserved, 1-errors, 2-warnings\|notice, 3-info, 4-verbose, 5-debug, 6-maximum. |
+| `GUEST_TYPE`              | `3`             | Defines which guest types to process: 1 = LXCs, 2 = VMs, 3 = both.         |
+| `NETWORK_RANGES`          | `(0.0.0.0/0)`   | IP addresses and network ranges in CIDR format in which IP must be located in order to be automatically added or removed as IP tag. |
+| `NETWORK_RANGES_IGNORED`  | `(127.0.0.1)`   | Do not auto add or remove these IP tags for VMs and LXCs, do not change their color. |
+| `IGNORED_VMIDS`           | `()`            | Ignore these LXCs and VMs.                                                 |
+| `INACTIVE_IP_TAGS_ACTION` | `change_color`  | What to do with IP tags when VM/LXC is stopped: \[ `remove` \| `change_color` \| `none` \]. |
+| `CHANGE_IP_TAGS_COLORS`   | `1`             | Allow changing Proxmox default tags colors: \[ 0 \| 1 \]. \*1 |
+| `UPDATE_IP_TAGS_INTERVAL` | `60`            | Time in seconds between IP tags updates. Must be > 0. Minimum 60 is recommended. |
+| `IP_TAGS_POS`             | `first`         | Controls the placement of newly added IP tags: \[ `first` \| `last` \]. \*2|
+| `FORCE_IP_TAGS_POS`       | `1`             | Enforces a fixed position for IP tags according to the value of the `IP_TAGS_POS`. \*2 |
+| `TAG_COLOR`               | `ffffff`        | Foreground color for active IPs (hex).                                     |
+| `TAG_BGCOLOR`             | `4c4c4c`        | Background color for active IPs (hex).                                     |
+| `TAG_INACTIVE_COLOR`      | `ffffff`        | Foreground color for inactive IPs (hex).                                   |
+| `TAG_INACTIVE_BGCOLOR`    | `aaaaaa`        | Background color for inactive IPs (hex).                                   |
+| `CONFIG_SOURCE_VM_LXC`    | `cfg_files`     | Method for reading tags and selected config options: \[ cfg_files \| qm_pct \]. \*3 |
+| `LIST_VM_LXC_METHOD`      | `custom`        | Method for creating list of running VMs and LXCs: \[ custom \| qm_pct \].  |
+| `DISPLAY_TIMESTAMP`       | `0`             | Prefixes each output line with a timestamp - useful for terminal logging.  |
+| `VERBOSE`                 | `3`             | Verbosity level of log messages: \[ 0 \| 1 \| 2 \| 3 \| 4 \| 5 \| 6 \].    |
+
+
+\*1 - `CHANGE_IP_TAGS_COLORS=0` overwrites `INACTIVE_IP_TAGS_ACTION=change_color` and `INACTIVE_IP_TAGS_ACTION=change_none`.  
+\*2 - Require: Datacenter->Options->Tag Style Override->Ordering='Configuration'.  
+\*3 - cfg_files = fast (reads local config files), qm_pct = use default Proxmox tools.  
 
 ## Usage
 
@@ -89,25 +94,25 @@ However, it can be launched with the `--run-once` option to perform a one-time s
 
 By default, the script detects all IPv4 addresses (excluding 127.0.0.1) and assigns them as tags to virtual machines and LXC containers.   
 
-To limit the range of detected IP addresses, you can define custom networks using the `networks_range` parameter. For example, to include common local networks:
+To limit the range of detected IP addresses, you can define custom networks using the `NETWORK_RANGES` parameter. For example, to include common local networks:
 
 ````
-networks_range=( 192.168.0.0/16 10.0.0.0/8 )
+NETWORK_RANGES=( 192.168.0.0/16 10.0.0.0/8 )
 ````
-IP addresses that should be ignored must be added to the `ignored_ip_tags_list` variable.
+IP addresses that should be ignored must be added to the `NETWORK_RANGES_IGNORED` variable.
 This list can also include existing IP tags that you don't want to modify. If, for example, docker is
 installed in LXCc and we do not want its internal container (docker) addresses are added as tags:   
 
 ````
-ignored_ip_tags_list=( 127.0.0.1 172.17.0.1 172.17.0.2 172.18.0.1 172.18.0.2 )
+NETWORK_RANGES_IGNORED=( 127.0.0.1 172.17.0.1 172.17.0.2 172.18.0.1 172.18.0.2 )
 ````
 
 This also works the other way around, if these addresses were already assigned as tags to a
-container, they will not be automatically removed when added to the `ignored_vm_lxc_list`.   
+container, they will not be automatically removed when added to the `IGNORED_VMIDS`.   
 
 They will be ignored, just as the variable name suggests.   
 
- Note that this variable accepts specific IP addresses, not ranges as in `networks_range`.   
+ Note that this variable accepts specific IP addresses, not ranges as in `NETWORK_RANGES`.   
 
 ### Tags order
 
@@ -120,7 +125,7 @@ Please note that IP tags are not automatically sorted in the following cases:
 - The IP address is listed in the ignored tags list  
 - The guest agent is not installed in the virtual machine (VM)  
 - Datacenter `Tag Style Override -> Ordering` is not set to `Configuration`
-- `force_ip_tags_pos` is set to `0` in `/usr/local/etc/prox-ip2tag.conf`
+- `FORCE_IP_TAGS_POS` is set to `0` in `/usr/local/etc/prox-ip2tag.conf`
 
 ### Tags colors
 
@@ -142,7 +147,7 @@ This is not a bug, but a limitation/feature of the Proxmox interface.
 This is not a required step, but it allows for a quick and trouble-free script setup.
 
 1. Stop the service: `systemctl stop prox-ip2tag`
-2. In the file `/usr/local/etc/prox-ip2tag.conf`, set `VERBOSE=4` and `update_ip_tags_interval=5`
+2. In the file `/usr/local/etc/prox-ip2tag.conf`, set `VERBOSE=4` and `UPDATE_IP_TAGS_INTERVAL=5`
 3. Set two options in the Proxmox configuration::   
    `Datacenter -> Options -> Tag Style Override -> Ordering` = `Configuration`  
    `Datacenter -> Options -> Tag Style Override -> Tree Shape` = `Full`
@@ -158,7 +163,7 @@ and shut them down after they get IP tags. Once all machines have tags assigned,
 You can now make configuration changes and check the effect by running the script manually again.   
 With the above settings, changes should be visible within 60 seconds after launch.
 
-Once the result is satisfactory, you may reduce the `VERBOSE` level, increase `update_ip_tags_interval`,
+Once the result is satisfactory, you may reduce the `VERBOSE` level, increase `UPDATE_IP_TAGS_INTERVAL`,
 and run the script as a systemd service.
 
 ## Uninstall
@@ -179,5 +184,5 @@ rm -fv /usr/local/etc/prox-ip2tag.conf
 - ~~Sorting of tags also for stopped VMs and LXCs~~ [0.7.6]
 - Reading IP addresses from stopped LXC containers
 - Alternative configuration reading methods using `pvesh get`
-- Replace 'ignored_ip_tags_list' with 'ignored_ip_tag_range'
+- ~~Replace 'ignored_ip_tags_list' with 'ignored_ip_tag_range'~~ [0.8.0]
 - Tool to remove all IP tags

@@ -12,7 +12,7 @@
 # Defines which guest types to process: 1 = LXCs, 2 = VMs, 3 = both.
 GUEST_TYPE=3
 
-# Single addresses and network ranges in CIDR format in which IP must be located
+# IP addresses and network ranges in CIDR format in which IP must be located
 # in order to be automatically added or removed as IP tag.
 
 # Well known private networks: 10.0.0.0/24 192.168.0.0/24
@@ -57,11 +57,11 @@ TAG_INACTIVE_BGCOLOR='aaaaaa'
 
 # Method for reading tags and selected config options: [ cfg_files | qm_pct ].
 # cfg_files = fast (reads local config files), qm_pct = use default Proxmox tools.
-READ_VM_LXC_CONFIG_USING='cfg_files'
+CONFIG_SOURCE_VM_LXC='cfg_files'
 
 # Method for creating list of running VMs and LXCs: [ custom | qm_pct ].
 # custom = safe and x20 faster then 'qm_pct', qm_pct = use default Proxmox tools.
-LIST_VM_LXC_USING='custom'
+LIST_VM_LXC_METHOD='custom'
 
 # Prefixes each output line with a timestamp - useful for terminal logging.
 DISPLAY_TIMESTAMP=0
@@ -206,7 +206,7 @@ find_tags_for_guest() {
     guest_tags=()
     guest_agent=''
 
-    if [ "$READ_VM_LXC_CONFIG_USING" == 'qm_pct' ]; then
+    if [ "$CONFIG_SOURCE_VM_LXC" == 'qm_pct' ]; then
 	if [ "$type" == 'lxc' ]; then
 	    cmd_out="$(pct config $vmid)"
 	    [ $? -gt 0 ] && verb 1 "pct config $vmid: [Critical error] read config failed. Exiting." && exit 1
@@ -254,20 +254,20 @@ function update_tags() {
     verb 4; verb 4 "$ttype update tags"; verb 4 "- - - - - - - -"
 
     if [ "$type" == 'lxc' ]; then
-	if [ "$LIST_VM_LXC_USING" == 'custom' ]; then
+	if [ "$LIST_VM_LXC_METHOD" == 'custom' ]; then
 	    cmd_out="$( list_lxc_no_pct )"
 	else
 	    cmd_out="$( pct list )"
 	fi
-	[ $? -gt 0 ] && verb 1 "pct list - '$LIST_VM_LXC_USING': [Critical error] reading container list failed. Exiting." && exit 1
+	[ $? -gt 0 ] && verb 1 "pct list - '$LIST_VM_LXC_METHOD': [Critical error] reading container list failed. Exiting." && exit 1
 	vm_list="$( echo "$cmd_out" | awk 'NR>1 {print $1, $2}' )"
     else
-	if [ "$LIST_VM_LXC_USING" == 'custom' ]; then
+	if [ "$LIST_VM_LXC_METHOD" == 'custom' ]; then
 	    cmd_out="$( list_qemu_no_qm )"
 	else
     	    cmd_out="$( qm list )"
 	fi
-	[ $? -gt 0 ] && verb 1 "qm list - '$LIST_VM_LXC_USING': [Critical error] reading virtual machine list failed. Exiting." && exit 1
+	[ $? -gt 0 ] && verb 1 "qm list - '$LIST_VM_LXC_METHOD': [Critical error] reading virtual machine list failed. Exiting." && exit 1
 	vm_list="$( echo "$cmd_out" | awk 'NR>1 {print $1, $3}' )"
     fi
 
@@ -629,11 +629,11 @@ function p_init() {
     [[ ! "$GUEST_TYPE" =~ ^[123]$ ]] \
 	&& verb 1 "[Critical error] Bad value for: GUEST_TYPE -> '$GUEST_TYPE'" && exit 1
 
-    [[ ! "$READ_VM_LXC_CONFIG_USING" =~ ^(cfg_files|qm_pct)$ ]] \
-	&& verb 1 "[Critical error] Bad value for: READ_VM_LXC_CONFIG_USING -> '$READ_VM_LXC_CONFIG_USING'" && exit 1
+    [[ ! "$CONFIG_SOURCE_VM_LXC" =~ ^(cfg_files|qm_pct)$ ]] \
+	&& verb 1 "[Critical error] Bad value for: CONFIG_SOURCE_VM_LXC -> '$CONFIG_SOURCE_VM_LXC'" && exit 1
 
-    [[ ! "$LIST_VM_LXC_USING" =~ ^(custom|qm_pct)$ ]] \
-	&& verb 1 "[Critical error] Bad value for: LIST_VM_LXC_USING -> '$LIST_VM_LXC_USING'" && exit 1
+    [[ ! "$LIST_VM_LXC_METHOD" =~ ^(custom|qm_pct)$ ]] \
+	&& verb 1 "[Critical error] Bad value for: LIST_VM_LXC_METHOD -> '$LIST_VM_LXC_METHOD'" && exit 1
 
     [[ ! "$INACTIVE_IP_TAGS_ACTION" =~ ^(change_color|none|remove)$ ]] \
 	&& verb 1 "[Critical error] Bad value for: INACTIVE_IP_TAGS_ACTION -> '$INACTIVE_IP_TAGS_ACTION'" && exit 1
