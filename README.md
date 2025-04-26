@@ -67,15 +67,15 @@ The configuration file with all available options is located at: `/usr/local/etc
 | `NETWORK_RANGES_IGNORED`  | `(127.0.0.1)`   | Do not auto add or remove these IP tags for VMs and LXCs, do not change their color. |
 | `IGNORED_VMIDS`           | `()`            | Ignore these LXCs and VMs.                                                 |
 | `INACTIVE_IP_TAGS_ACTION` | `change_color`  | What to do with IP tags when VM/LXC is stopped: \[ `remove` \| `change_color` \| `none` \]. |
-| `CHANGE_IP_TAGS_COLORS`   | `1`             | Allow changing Proxmox default tags colors: \[ 0 \| 1 \]. \*1 |
+| `CHANGE_IP_TAGS_COLORS`   | `1`             | Allow changing Proxmox default tags colors: \[ 0 \| 1 \]. \*<sup>1</sup> |
 | `UPDATE_IP_TAGS_INTERVAL` | `60`            | Time in seconds between IP tags updates. Must be > 0. Minimum 60 is recommended. |
-| `IP_TAGS_POS`             | `first`         | Controls the placement of newly added IP tags: \[ `first` \| `last` \]. \*2|
-| `FORCE_IP_TAGS_POS`       | `1`             | Enforces a fixed position for IP tags according to the value of the `IP_TAGS_POS`. \*2 |
+| `IP_TAGS_POS`             | `first`         | Controls the placement of newly added IP tags: \[ `first` \| `last` \]. (\*<sup>2</sup>)|
+| `FORCE_IP_TAGS_POS`       | `1`             | Enforces a fixed position for IP tags according to the value of the `IP_TAGS_POS`. \*<sup>2</sup> |
 | `TAG_COLOR`               | `ffffff`        | Foreground color for active IPs (hex).                                     |
 | `TAG_BGCOLOR`             | `4c4c4c`        | Background color for active IPs (hex).                                     |
 | `TAG_INACTIVE_COLOR`      | `ffffff`        | Foreground color for inactive IPs (hex).                                   |
 | `TAG_INACTIVE_BGCOLOR`    | `aaaaaa`        | Background color for inactive IPs (hex).                                   |
-| `CONFIG_SOURCE_VM_LXC`    | `cfg_files`     | Method for reading tags and selected config options: \[ cfg_files \| qm_pct \]. \*3 |
+| `CONFIG_SOURCE_VM_LXC`    | `cfg_files`     | Method for reading tags and selected config options: \[ cfg_files \| qm_pct \]. \*<sup>3</sup> |
 | `LIST_VM_LXC_METHOD`      | `custom`        | Method for creating list of running VMs and LXCs: \[ custom \| qm_pct \].  |
 | `DISPLAY_TIMESTAMP`       | `0`             | Prefixes each output line with a timestamp - useful for terminal logging.  |
 | `VERBOSE`                 | `3`             | Verbosity level of log messages: \[ 0 \| 1 \| 2 \| 3 \| 4 \| 5 \| 6 \].    |
