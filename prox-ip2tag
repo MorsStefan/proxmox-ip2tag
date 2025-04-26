@@ -2,7 +2,7 @@
 
 # https://github.com/MorsStefan/proxmox-ip2tag/
 # Łukasz Dyś | Mors Stefan
-# 2025-04-26 | ver 0.7.8
+# 2025-04-27 | ver 0.8.0rc1
 
 #-------------------------------------------------------------------------------
 #          Do not modify this file.
@@ -39,7 +39,7 @@ CHANGE_IP_TAGS_COLORS=1
 INACTIVE_IP_TAGS_ACTION='change_color'
 
 # Time in seconds between IP tags updates. Must be > 0. Minimum 60 is recommended.
-UPDATE_IP_TAGS_INTERVAL=1
+UPDATE_IP_TAGS_INTERVAL=60
 
 # Controls the placement of newly added IP tags: [ first | last ].
 # Require: Datacenter->Options->Tag Style Override->Ordering='Configuration'
@@ -57,18 +57,21 @@ TAG_INACTIVE_BGCOLOR='aaaaaa'
 
 # Method for reading tags and selected config options: [ cfg_files | qm_pct ].
 # cfg_files = fast (reads local config files), qm_pct = use default Proxmox tools.
-CONFIG_SOURCE_VM_LXC='cfg_files'
+VM_LXC_CONFIG_SOURCE='cfg_files'
 
 # Method for creating list of running VMs and LXCs: [ custom | qm_pct ].
-# custom = safe and x20 faster then 'qm_pct', qm_pct = use default Proxmox tools.
-LIST_VM_LXC_METHOD='custom'
+# custom = much faster then 'qm_pct', qm_pct = use default Proxmox tools.
+VM_LXC_LIST_METHOD='custom'
+
+# Method for reading cluster config options: [ cfg_files | pvesh ].
+CLUSTER_CONFIG_SOURCE='cfg_files'
 
 # Prefixes each output line with a timestamp - useful for terminal logging.
 DISPLAY_TIMESTAMP=0
 
 # Verbosity level of log messages: [ 0 | 1 | 2 | 3 | 4 | 5 | 6 ].
 # 0-reserved, 1-errors, 2-warnings|notice, 3-info, 4-verbose, 5-debug, 6-maximum
-VERBOSE=4
+VERBOSE=3
 
 
 
@@ -109,8 +112,6 @@ function valid_cidr() {
     local cidr="$1"
     [ -z "$cidr" ] && return 1
     local ip="${cidr%/*}" subnet="${cidr#*/}"
-    # Exception for 'normal' IP address
-    # [[ "$cidr" != */* ]] && valid_ipv4 "$cidr" && return 0 || return 1
     if valid_ipv4 "$ip" && is_num "$subnet" && (( subnet >= 0 && subnet <= 32 )); then
         return 0
     fi
@@ -120,7 +121,6 @@ function valid_cidr() {
 function find_ip_in_networks() {
     local ip="$1" tmp_arr=("${@:2}")
     [ -z "$tmp_arr" ] && return 1
-#    echo "ip: '$ip' tmp_arr: '${tmp_arr[*]}'"
     for network in "${tmp_arr[@]}"; do
 	valid_cidr "$network" || continue
 	local ip_num subnet_num mask
@@ -134,9 +134,6 @@ function find_ip_in_networks() {
     done
     return 1
 }
-
-#in_network_range '172.18.0.1' 'ignored' && echo tak || echo nie
-#exit
 
 function verb() {
     local dat txt="$2"
@@ -153,7 +150,7 @@ function verb() {
 
 
 
-# [ 0,026 ] 21x faster then 'pct list'
+# [ 0,026 - 10 LXCs] 21x faster then 'pct list'
 function list_lxc_no_pct() {
     local row name status vmid cfg_file cfg_dir="/etc/pve/lxc"
 
@@ -193,7 +190,6 @@ list_qemu_no_qm() {
 }
 
 function join_tags() {
-    #[ -z "${*}" ] || echo "${*}" | xargs | tr ' ' ',';
     [ -z "${*}" ] || printf "%s\n" "$*" | xargs | tr ' ' ','
     return
 }
@@ -206,7 +202,7 @@ find_tags_for_guest() {
     guest_tags=()
     guest_agent=''
 
-    if [ "$CONFIG_SOURCE_VM_LXC" == 'qm_pct' ]; then
+    if [ "$VM_LXC_CONFIG_SOURCE" == 'qm_pct' ]; then
 	if [ "$type" == 'lxc' ]; then
 	    cmd_out="$(pct config $vmid)"
 	    [ $? -gt 0 ] && verb 1 "pct config $vmid: [Critical error] read config failed. Exiting." && exit 1
@@ -226,6 +222,7 @@ find_tags_for_guest() {
 	exit 1
     fi
 
+    # snapshot-proof
     while IFS= read -r line; do
         [[ "$line" =~ ^\[.*\] ]] && break
         if [[ "$line" =~ ^tags: ]]; then
@@ -238,7 +235,6 @@ find_tags_for_guest() {
         if [[ "$line" =~ ^agent: ]]; then
 	    guest_agent="$(echo "${line#*: }" | cut -d, -f1 | xargs)"
 	fi
-
     done < "$conf"
 
     return 0
@@ -254,20 +250,20 @@ function update_tags() {
     verb 4; verb 4 "$ttype update tags"; verb 4 "- - - - - - - -"
 
     if [ "$type" == 'lxc' ]; then
-	if [ "$LIST_VM_LXC_METHOD" == 'custom' ]; then
+	if [ "$VM_LXC_LIST_METHOD" == 'custom' ]; then
 	    cmd_out="$( list_lxc_no_pct )"
 	else
 	    cmd_out="$( pct list )"
 	fi
-	[ $? -gt 0 ] && verb 1 "pct list - '$LIST_VM_LXC_METHOD': [Critical error] reading container list failed. Exiting." && exit 1
+	[ $? -gt 0 ] && verb 1 "pct list - '$VM_LXC_LIST_METHOD': [Critical error] reading container list failed. Exiting." && exit 1
 	vm_list="$( echo "$cmd_out" | awk 'NR>1 {print $1, $2}' )"
     else
-	if [ "$LIST_VM_LXC_METHOD" == 'custom' ]; then
+	if [ "$VM_LXC_LIST_METHOD" == 'custom' ]; then
 	    cmd_out="$( list_qemu_no_qm )"
 	else
     	    cmd_out="$( qm list )"
 	fi
-	[ $? -gt 0 ] && verb 1 "qm list - '$LIST_VM_LXC_METHOD': [Critical error] reading virtual machine list failed. Exiting." && exit 1
+	[ $? -gt 0 ] && verb 1 "qm list - '$VM_LXC_LIST_METHOD': [Critical error] reading virtual machine list failed. Exiting." && exit 1
 	vm_list="$( echo "$cmd_out" | awk 'NR>1 {print $1, $3}' )"
     fi
 
@@ -543,29 +539,44 @@ function updates_vm_tags_and_tags_colors() {
 function read_cluster_config() {
     local cmd_out clean_key
 
-    # Read cluster options: case-sensitive|shape|ordering|color-map
-    cmd_out="$(pvesh get /cluster/options --noborder 1 --noheader 1 --output-format json-pretty)"
-    [ $? -gt 0 ] && verb 1 "pvesh get: [critical error] read cluster options failed. Exiting." && exit 1
-
     ordering=''
     case_sensitive=''
     shape=''
     color_map=''
 
-    if [ $jqi -eq 1 ]; then
+    # Read cluster options: case-sensitive|shape|ordering|color-map
+    if [ "$CLUSTER_CONFIG_SOURCE" == 'cfg_files' ]; then
+	cmd_out="$(cat '/etc/pve/datacenter.cfg')"
+	[ $? -gt 0 ] && verb 1 "cfg_files: [Critical error] read cluster options failed. Exiting." && exit 1
+
 	while IFS== read -r key value; do
     	    case "$key" in
-    		"case-sensitive"|"shape"|"ordering"|"color-map")
-        	clean_key=$(echo "$key" | tr '-' '_')
+    	        "case-sensitive"|"shape"|"ordering"|"color-map")
+    		clean_key=$(echo "$key" | tr '-' '_')
         	declare -g "$clean_key=$value"
     	    ;;
     	    esac
-	done < <( echo "$cmd_out" | jq -r '.["tag-style"] | to_entries[] | "\(.key)=\(.value)"' )
+	done <<< "$(echo "$cmd_out" | grep '^tag-style:' | sed 's/^tag-style:[[:space:]]*//' | tr -d '[:space:]' | tr ',' '\n')"
+
     else
-	case_sensitive=$(echo "$cmd_out" | grep '"case-sensitive" :' | cut -d ':' -f2 | tr -d ' ,')
-	color_map=$(echo "$cmd_out" | grep '"color-map" :' | cut -d ':' -f2- | cut -d '"' -f2)
-	ordering=$(echo "$cmd_out" | grep '"ordering" :' | cut -d ':' -f2 | tr -d ' ",' )
-	shape=$(echo "$cmd_out" | grep '"shape" :' | cut -d ':' -f2 | tr -d ' ",' )
+	cmd_out="$(pvesh get /cluster/options --noborder 1 --noheader 1 --output-format json-pretty)"
+	[ $? -gt 0 ] && verb 1 "pvesh get: [Critical error] read cluster options failed. Exiting." && exit 1
+
+	if [ $jqi -eq 1 ]; then
+	    while IFS== read -r key value; do
+    		case "$key" in
+    		    "case-sensitive"|"shape"|"ordering"|"color-map")
+        	    clean_key=$(echo "$key" | tr '-' '_')
+        	    declare -g "$clean_key=$value"
+    		;;
+    		esac
+	    done < <( echo "$cmd_out" | jq -r '.["tag-style"] | to_entries[] | "\(.key)=\(.value)"' )
+	else
+	    case_sensitive=$(echo "$cmd_out" | grep '"case-sensitive" :' | cut -d ':' -f2 | tr -d ' ,')
+	    color_map=$(echo "$cmd_out" | grep '"color-map" :' | cut -d ':' -f2- | cut -d '"' -f2)
+	    ordering=$(echo "$cmd_out" | grep '"ordering" :' | cut -d ':' -f2 | tr -d ' ",' )
+	    shape=$(echo "$cmd_out" | grep '"shape" :' | cut -d ':' -f2 | tr -d ' ",' )
+	fi
     fi
     verb 4 "read cluster options"
     verb 5 "/cluster/options: -> ordering='$ordering' | case_sensitive='$case_sensitive' | shape='$shape'"
@@ -605,6 +616,7 @@ function p_init() {
     exec 200>"$LOCK_FILE"
     flock -n 200 || {
 	verb 1 "[Critical error] Another instance of prox-ip2tag is already running."
+	verb 1
 	verb 1 "If you're sure no other instance is active, remove the lock file:"
 	verb 1 "  sudo rm -f $LOCK_FILE"
 	exit 1
@@ -629,11 +641,14 @@ function p_init() {
     [[ ! "$GUEST_TYPE" =~ ^[123]$ ]] \
 	&& verb 1 "[Critical error] Bad value for: GUEST_TYPE -> '$GUEST_TYPE'" && exit 1
 
-    [[ ! "$CONFIG_SOURCE_VM_LXC" =~ ^(cfg_files|qm_pct)$ ]] \
-	&& verb 1 "[Critical error] Bad value for: CONFIG_SOURCE_VM_LXC -> '$CONFIG_SOURCE_VM_LXC'" && exit 1
+    [[ ! "$VM_LXC_CONFIG_SOURCE" =~ ^(cfg_files|qm_pct)$ ]] \
+	&& verb 1 "[Critical error] Bad value for: VM_LXC_CONFIG_SOURCE -> '$VM_LXC_CONFIG_SOURCE'" && exit 1
 
-    [[ ! "$LIST_VM_LXC_METHOD" =~ ^(custom|qm_pct)$ ]] \
-	&& verb 1 "[Critical error] Bad value for: LIST_VM_LXC_METHOD -> '$LIST_VM_LXC_METHOD'" && exit 1
+    [[ ! "$CLUSTER_CONFIG_SOURCE" =~ ^(cfg_files|pvesh)$ ]] \
+	&& verb 1 "[Critical error] Bad value for: CLUSTER_CONFIG_SOURCE -> '$CLUSTER_CONFIG_SOURCE'" && exit 1
+
+    [[ ! "$VM_LXC_LIST_METHOD" =~ ^(custom|qm_pct)$ ]] \
+	&& verb 1 "[Critical error] Bad value for: VM_LXC_LIST_METHOD -> '$VM_LXC_LIST_METHOD'" && exit 1
 
     [[ ! "$INACTIVE_IP_TAGS_ACTION" =~ ^(change_color|none|remove)$ ]] \
 	&& verb 1 "[Critical error] Bad value for: INACTIVE_IP_TAGS_ACTION -> '$INACTIVE_IP_TAGS_ACTION'" && exit 1
@@ -707,9 +722,7 @@ function main() {
     done
 }
 
-main
+main "$@"
 
 # Todo
-# - use LXC/VM list from cluster instead of pct|qm 
-# - checking IP numbers from the configuration for LXCs (when stopped) (?)
 # - IP lookup using ethernet addr. and arp table for non-guest VMs (?)
