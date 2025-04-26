@@ -84,9 +84,11 @@ The configuration file with all available options is located at: `/usr/local/etc
 | `VERBOSE`                 | `3`             | Verbosity level of log messages: \[ 0 \| 1 \| 2 \| 3 \| 4 \| 5 \| 6 \].    |
 
 
-\*1 - When `CHANGE_IP_TAGS_COLORS`=`0`, it overwrites `INACTIVE_IP_TAGS_ACTION=change_color` and `INACTIVE_IP_TAGS_ACTION=change_none`.  
+\*1 - When `CHANGE_IP_TAGS_COLORS`=`0`, it overwrites `INACTIVE_IP_TAGS_ACTION=change_color` and  
+      `INACTIVE_IP_TAGS_ACTION=change_none`.  
 \*2 - Require cluster setting: `Datacenter->Options->Tag Style Override->Ordering='Configuration'`  
-\*3 - The `cfg_files` option is very fast because it reads local configuration files; otherwise, the default Proxmox tools are used.
+\*3 - The `cfg_files` option is very fast because it reads local configuration files; otherwise, the default Proxmox tools  
+      are used.
 
 ## Usage
 
@@ -111,8 +113,8 @@ installed in LXCc and we do not want its internal container (docker) addresses a
 NETWORK_RANGES_IGNORED=( 127.0.0.1 172.17.0.0/16 172.18.0.0/16 )
 ```
 
-This also works the other way around, if these addresses were already assigned as tags to a
-container, they will not be automatically removed when added to the `IGNORED_VMIDS`.   
+This also works the other way around, if these addresses were already assigned as IP tags to a
+LXC/VM, they will not be automatically removed when added to the `NETWORK_RANGES_IGNORED`.   
 
 They will be ignored, just as the variable name suggests.   
 
@@ -125,11 +127,11 @@ To ensure correct IP tag sorting and position enforcement, the parameter:
 `Datacenter -> Options -> Tag Style Override -> Ordering` should be set to `Configuration`.
 
 Please note that IP tags are not automatically sorted in the following cases:   
-- The VM/LXC is listed in the ignored machines list  
-- The IP address is listed in the ignored tags list  
+- The VM/LXC is listed in the `IGNORED_VMIDS`  
+- The IP address is listed in the `NETWORK_RANGES_IGNORED`  
 - The guest agent is not installed in the virtual machine (VM)  
-- Datacenter `Tag Style Override -> Ordering` is not set to `Configuration`
-- `FORCE_IP_TAGS_POS` is set to `0` in `/usr/local/etc/prox-ip2tag.conf`
+- Datacenter `Tag Style Override -> Ordering` is not set to `Configuration`  
+- `FORCE_IP_TAGS_POS` is set to `0` in `/usr/local/etc/prox-ip2tag.conf`  
 
 ### Tags colors
 
@@ -145,13 +147,13 @@ color changes are applied globally and cannot differ per machine.
 Tag color changes are not visible immediately. Press `F5` to refresh the view.
 This is not a bug, but a limitation/feature of the Proxmox interface.
 
-### Practical tip for new users
+### Initial Setup Guide
 
 This is not a required step, but it allows for a quick and trouble-free script setup.
 
 1. Stop the service: `systemctl stop prox-ip2tag`
 2. In the file `/usr/local/etc/prox-ip2tag.conf`, set `VERBOSE=4` and `UPDATE_IP_TAGS_INTERVAL=5`
-3. Set two options in the Proxmox configuration::   
+3. Set two options in the Proxmox configuration:  
    `Datacenter -> Options -> Tag Style Override -> Ordering` = `Configuration`  
    `Datacenter -> Options -> Tag Style Override -> Tree Shape` = `Full`
 4. Run in terminal: `/usr/local/bin/prox-ip2tag` and observe the output
