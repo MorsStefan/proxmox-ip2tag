@@ -2,7 +2,7 @@
 
 # https://github.com/MorsStefan/proxmox-ip2tag/
 # Łukasz Dyś | Mors Stefan
-# 2025-04-27 | ver 0.8.0
+# 2025-04-28 | ver 0.8.1
 
 #-------------------------------------------------------------------------------
 #          Do not modify this file.
@@ -208,15 +208,15 @@ find_tags_for_guest() {
     guest_tags=()
     guest_agent=''
 
-    ! is_num "$vmid" && verb 1 "$vmid: [Critical error] input value '$vmid' is not an integer. Exiting." && exit
+    ! is_num "$vmid" && verb 1 "$vmid: [Critical error] Input value '$vmid' is not an integer. Exiting." && exit
 
     if [ "$VM_LXC_CONFIG_SOURCE" == 'qm_pct' ]; then
 	if [ "$type" == 'lxc' ]; then
 	    cmd_out="$(pct config $vmid)"
-	    [ $? -gt 0 ] && verb 1 "pct config $vmid: [Critical error] read config failed. Exiting." && exit 1
+	    [ $? -gt 0 ] && verb 1 "pct config $vmid: [Critical error] Failed to read config. Exiting." && exit 1
 	else
             cmd_out="$(qm config $vmid)"
-	    [ $? -gt 0 ] && verb 1 "qm config $vmid: [Critical error] read config failed. Exiting." && exit 1
+	    [ $? -gt 0 ] && verb 1 "qm config $vmid: [Critical error] Failed to read config. Exiting." && exit 1
             guest_agent="$(echo "$cmd_out" | awk -F': ' '/^agent:/ {print $2}' | cut -d, -f1 | xargs)"
 	fi
         mapfile -t guest_tags < <(echo "$cmd_out" | awk -F': ' '/^tags:/ {print $2}' | xargs | tr ';' '\n')
@@ -226,7 +226,7 @@ find_tags_for_guest() {
     [ "$type" == "lxc" ] && conf="/etc/pve/lxc/${vmid}.conf"
     [ "$type" == "vm"  ] && conf="/etc/pve/qemu-server/${vmid}.conf"
     if [ ! -f "$conf" ]; then
-	verb 1 "$vmid: [Critical error] file not found '$conf'. Exiting."
+	verb 1 "$vmid: [Critical error] File not found '$conf'. Exiting."
 	exit 1
     fi
 
@@ -263,7 +263,7 @@ function update_tags() {
 	else
 	    cmd_out="$( pct list )"
 	fi
-	[ $? -gt 0 ] && verb 1 "pct list - '$VM_LXC_LIST_METHOD': [Critical error] reading container list failed. Exiting." && exit 1
+	[ $? -gt 0 ] && verb 1 "pct list - '$VM_LXC_LIST_METHOD': [Critical error] Failed to read container list. Exiting." && exit 1
 	vm_list="$( echo "$cmd_out" | awk 'NR>1 {print $1, $2}' )"
     else
 	if [ "$VM_LXC_LIST_METHOD" == 'custom' ]; then
@@ -271,7 +271,7 @@ function update_tags() {
 	else
     	    cmd_out="$( qm list )"
 	fi
-	[ $? -gt 0 ] && verb 1 "qm list - '$VM_LXC_LIST_METHOD': [Critical error] reading virtual machine list failed. Exiting." && exit 1
+	[ $? -gt 0 ] && verb 1 "qm list - '$VM_LXC_LIST_METHOD': [Critical error] Failed to read virtual machine list. Exiting." && exit 1
 	vm_list="$( echo "$cmd_out" | awk 'NR>1 {print $1, $3}' )"
     fi
 
@@ -325,7 +325,7 @@ function update_tags() {
 	    fi
 
             # Skip if VM/LXC has no IP
-	    [ "$vm_ips_list" == "" ] && verb 2 "$vmid: [Warning] $ttype is running, but no IP was return." && continue
+	    [ "$vm_ips_list" == "" ] && verb 2 "$vmid: [Warning] $ttype is running, but no IP was returned." && continue
 
 	    # Add all IP's to active ip tags
 	    for ip in "${vm_ips_list[@]}"; do
@@ -353,7 +353,7 @@ function update_tags() {
 		    # Dont add inactive IP
 		    if in_network_range "$cur_tag" && ! is_active_ip "$cur_tag" "${vm_ips_list[@]}"; then
 			inactive_ip_tags+=("$cur_tag")
-			verb 4 "$vmid: IP in network range but not active: $cur_tag"			
+			verb 4 "$vmid: IP is in NETWORK_RANGES but not active: $cur_tag"			
 			continue
 		    fi
 		    # Add other tags
@@ -366,7 +366,7 @@ function update_tags() {
         	    is_ignored_tag "$cur_tag" && new_tags+=("$cur_tag") && continue
 		    # Dont add from our network range
 		    if in_network_range "$cur_tag"; then
-			verb 5 "$vmid: IP in network range and active: $cur_tag"
+			verb 5 "$vmid: IP is in NETWORK_RANGES and active: $cur_tag"
 			continue
 		    fi
 		    # Add other tags
@@ -393,7 +393,7 @@ function update_tags() {
 			else
 			    new_tags=("${vm_ip}" ${new_tags[*]})
 			fi
-			verb 5 "$vmid: found new IP in network range and active: $vm_ip"
+			verb 5 "$vmid: New active IP found in NETWORK_RANGES: $vm_ip"
 		    fi
 		fi
 	    done
@@ -478,7 +478,7 @@ function update_tags() {
 	else
 	    qm set "${vmid}" -tags "$new_tags_tmp" &>/dev/null
 	fi
-	[ $? -gt 0 ] && verb 1 "$vmid: [Error] update $ttype tags failed." && continue
+	[ $? -gt 0 ] && verb 1 "$vmid: [Error] Update $ttype tags failed." && continue
 
     done <<< "$vm_list"
 
@@ -535,7 +535,7 @@ function updates_vm_tags_and_tags_colors() {
 
     config_string="$(build_config_string)"
     pvesh set /cluster/options --tag-style "color-map=$config_string" &>/dev/null
-    [ $? -gt 0 ] && verb 1 "pvesh set: [Error] update cluster options failed."
+    [ $? -gt 0 ] && verb 1 "pvesh set: [Error] Update cluster options failed."
 }
 
 
@@ -555,7 +555,7 @@ function read_cluster_config() {
     # Read cluster options: case-sensitive|shape|ordering|color-map
     if [ "$CLUSTER_CONFIG_SOURCE" == 'cfg_files' ]; then
 	cmd_out="$(cat '/etc/pve/datacenter.cfg')"
-	[ $? -gt 0 ] && verb 1 "cfg_files: [Critical error] read cluster options failed. Exiting." && exit 1
+	[ $? -gt 0 ] && verb 1 "cfg_files: [Critical error] Failed to read cluster options. Exiting." && exit 1
 
 	while IFS== read -r key value; do
     	    case "$key" in
@@ -568,7 +568,7 @@ function read_cluster_config() {
 
     else
 	cmd_out="$(pvesh get /cluster/options --noborder 1 --noheader 1 --output-format json-pretty)"
-	[ $? -gt 0 ] && verb 1 "pvesh get: [Critical error] read cluster options failed. Exiting." && exit 1
+	[ $? -gt 0 ] && verb 1 "pvesh get: [Critical error] Failed to read cluster options. Exiting." && exit 1
 
 	if [ $jqi -eq 1 ]; then
 	    while IFS== read -r key value; do
@@ -586,7 +586,7 @@ function read_cluster_config() {
 	    shape=$(echo "$cmd_out" | grep '"shape" :' | cut -d ':' -f2 | tr -d ' ",' )
 	fi
     fi
-    verb 4 "read cluster options"
+    verb 4 "cluster: read tag-style"
     verb 5 "/cluster/options: -> ordering='$ordering' | case_sensitive='$case_sensitive' | shape='$shape'"
 }
 
@@ -638,7 +638,7 @@ function guest_type_check() {
 	    verb 2 "[Notice] VM support enabled, but no VMs found."
 	fi
 	if [[ "$VM_LXC_LIST_METHOD" == 'custom' && -z "$(list_qemu_no_qm | head -n 1)" && -n "$qm_out" ]]; then
-	    verb 2 "[Warning] Mismatch between output of the custom method and 'pct list'."
+	    verb 2 "[Warning] Mismatch between output of the custom method and 'qm list'."
 	    verb 2 "[Warning] Falling back to: 'VM_LXC_LIST_METHOD=qm_pct'."
 	    VM_LXC_LIST_METHOD='qm_pct'
 	fi
@@ -660,6 +660,8 @@ function p_init() {
 
     # Read user config file
     [ -f "/usr/local/etc/prox-ip2tag.conf" ] && source /usr/local/etc/prox-ip2tag.conf
+
+    verb 4; verb 4 "Initializing"; verb 4 "- - - - - - - -"
 
     # Check the necessary programs
     for cmd in qm pct pvesh lxc-info bc; do
@@ -740,6 +742,7 @@ function p_init() {
     NETWORK_RANGES_IGNORED=("${tmp[@]}")
 
     update_ip_tags_last_run=0
+    verb 4 'Everything ok'
     read_cluster_config
 }
 
