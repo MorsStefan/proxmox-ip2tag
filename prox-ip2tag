@@ -151,10 +151,13 @@ function verb() {
 
 
 # [ 0,026 - 10 LXCs] 21x faster then 'pct list'
+# To check: Prox after fresh install
 function list_lxc_no_pct() {
     local row name status vmid cfg_file cfg_dir="/etc/pve/lxc"
 
     [[ ! -d "$cfg_dir" ]] && return 1
+    ls "$cfg_dir"/*.conf &>/dev/null || return 0
+
     echo -e "VMID\tStatus\tName"
     for cfg_file in "$cfg_dir"/*.conf; do
         vmid="${cfg_file##*/}"; vmid="${vmid%.conf}"
@@ -164,11 +167,14 @@ function list_lxc_no_pct() {
     done
 }
 
+# To check: Prox after fresh install
 list_qemu_no_qm() {
     local cfg_file vmid name status cfg_dir="/etc/pve/qemu-server"
 
     [ ! -d "$cfg_dir" ] && return 1
     printf "      VMID NAME                 STATUS\n"
+    ls "$cfg_dir"/*.conf &>/dev/null || return 0
+
     for cfg_file in "$cfg_dir"/*.conf; do
         [[ -e "$cfg_file" ]] || continue
         vmid="${cfg_file##*/}"
@@ -201,6 +207,8 @@ find_tags_for_guest() {
     local type="$1" vmid="$2" conf line tag cmd_out
     guest_tags=()
     guest_agent=''
+
+    ! is_num "$vmid" && verb 1 "$vmid: [Critical error] input value '$vmid' is not an integer. Exiting." && exit
 
     if [ "$VM_LXC_CONFIG_SOURCE" == 'qm_pct' ]; then
 	if [ "$type" == 'lxc' ]; then
@@ -610,6 +618,34 @@ function build_config_string() {
 
 
 
+function guest_type_check() {
+    local pct_out qm_out
+    if (( GUEST_TYPE & 1 )); then
+	pct_out="$(pct list 2>/dev/null| head -n 1)"
+	if [ -z "$pct_out" ]; then
+	    verb 2 "[Notice] LXC support enabled, but no containers found."
+	fi
+	if [[ "$VM_LXC_LIST_METHOD" == 'custom' && -z "$(list_lxc_no_pct | head -n 1)" && -n "$pct_out" ]]; then
+	    verb 2 "[Warning] Mismatch between output of the custom method and 'pct list'."
+	    verb 2 "[Warning] Falling back to: 'VM_LXC_LIST_METHOD=qm_pct'."
+	    VM_LXC_LIST_METHOD='qm_pct'
+	fi
+    fi
+
+    if (( GUEST_TYPE & 2 )); then
+	qm_out="$(qm list 2>/dev/null| tail -n +2 | head -n 1)"
+	if [ -z "$qm_out" ]; then
+	    verb 2 "[Notice] VM support enabled, but no VMs found."
+	fi
+	if [[ "$VM_LXC_LIST_METHOD" == 'custom' && -z "$(list_qemu_no_qm | head -n 1)" && -n "$qm_out" ]]; then
+	    verb 2 "[Warning] Mismatch between output of the custom method and 'pct list'."
+	    verb 2 "[Warning] Falling back to: 'VM_LXC_LIST_METHOD=qm_pct'."
+	    VM_LXC_LIST_METHOD='qm_pct'
+	fi
+    fi
+
+}
+
 function p_init() {
     local tmp=() cmd var val LOCK_FILE="/var/lock/prox-ip2tag.lock"
 
@@ -640,6 +676,8 @@ function p_init() {
     # Checking config values
     [[ ! "$GUEST_TYPE" =~ ^[123]$ ]] \
 	&& verb 1 "[Critical error] Bad value for: GUEST_TYPE -> '$GUEST_TYPE'" && exit 1
+
+    guest_type_check
 
     [[ ! "$VM_LXC_CONFIG_SOURCE" =~ ^(cfg_files|qm_pct)$ ]] \
 	&& verb 1 "[Critical error] Bad value for: VM_LXC_CONFIG_SOURCE -> '$VM_LXC_CONFIG_SOURCE'" && exit 1
