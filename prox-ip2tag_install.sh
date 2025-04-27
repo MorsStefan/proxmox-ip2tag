@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # https://github.com/MorsStefan/proxmox-ip2tag/
 # Łukasz Dyś | Mors Stefan
