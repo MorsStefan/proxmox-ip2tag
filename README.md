@@ -84,11 +84,9 @@ The configuration file with all available options is located at: `/usr/local/etc
 | `VERBOSE`                 | `3`             | Verbosity level of log messages: \[ 0 \| 1 \| 2 \| 3 \| 4 \| 5 \| 6 \].    |
 
 
-\*1 - When `CHANGE_IP_TAGS_COLORS`=`0`, it overwrites `INACTIVE_IP_TAGS_ACTION=change_color` and  
-      `INACTIVE_IP_TAGS_ACTION=change_none`.  
+\*1 - When `CHANGE_IP_TAGS_COLORS`=`0`, it overwrites `INACTIVE_IP_TAGS_ACTION=change_color` and `INACTIVE_IP_TAGS_ACTION=change_none`.  
 \*2 - Require cluster setting: `Datacenter->Options->Tag Style Override->Ordering='Configuration'`  
-\*3 - The `cfg_files` option is very fast because it reads local configuration files; otherwise, the default Proxmox tools  
-      are used.
+\*3 - The `cfg_files` option is very fast because it reads local configuration files; otherwise, the default Proxmox tools are used.
 
 ## Usage
 
@@ -189,8 +187,8 @@ rm -fv /usr/local/etc/prox-ip2tag.conf
 - ~~Sort tags for stopped VMs and LXCs~~ [0.7.6]  
 - Read IP addresses from stopped LXC containers 
 - Use `pvesh get` for alternative configuration reading
-- ~~Support ranges and IPs in `ignored_ip_tags_list`~~ [0.8.0]  
+- ~~Support ranges and IPs in 'ignored_ip_tags_list'~~ [0.8.0]  
 - ~~Replace 'ignored_ip_tags_list' with 'NETWORK_RANGES_IGNORED'~~ [0.8.0]  
-- ~~Implement a faster method for reading settings than `pvesh`, `qm`, and `lxc`~~ [0.8.0]  
+- ~~Implement a faster method for reading settings than 'pvesh', 'qm', and 'lxc'~~ [0.8.0]  
 - Add a tool to remove all IP tags from VMs and LXCs
 - Add the `--dry-run` option
