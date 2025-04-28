@@ -2,7 +2,7 @@
 
 # https://github.com/MorsStefan/proxmox-ip2tag/
 # Łukasz Dyś | Mors Stefan
-# 2025-04-28 | ver 0.8.1
+# 2025-04-29 | ver 0.8.1
 
 #-------------------------------------------------------------------------------
 #          Do not modify this file.
@@ -59,8 +59,8 @@ TAG_INACTIVE_BGCOLOR='aaaaaa'
 # cfg_files = fast (reads local config files), qm_pct = use default Proxmox tools.
 VM_LXC_CONFIG_SOURCE='cfg_files'
 
-# Method for creating list of running VMs and LXCs: [ custom | qm_pct ].
-# custom = much faster then 'qm_pct', qm_pct = use default Proxmox tools.
+# Method for generating the list of running VMs and LXCs: [ custom | qm_pct ]
+# custom = much faster than qm_pct; qm_pct = uses default Proxmox tools.
 VM_LXC_LIST_METHOD='custom'
 
 # Method for reading cluster config options: [ cfg_files | pvesh ].
@@ -87,12 +87,7 @@ function in_network_range() { valid_ipv4 "$1" && find_ip_in_networks "$1" "${NET
 
 function is_ignored_tag() { valid_ipv4 "$1" && find_ip_in_networks "$1" "${NETWORK_RANGES_IGNORED[@]}"; }
 
-#function is_ignored_tag() { [ -n "$1" ] && in_arr "$1" "${NETWORK_RANGES_IGNORED[@]}"; }
-
-function is_ignored_vm() {
-    [ -z "$1" ] && return 1
-    [[ " ${IGNORED_VMIDS[*]} " == *" ${1} "* ]] && return 0 || return 1
-}
+function is_ignored_vm() { [ -n "$1" ] && in_arr "$1" "${IGNORED_VMIDS[@]}"; }
 
 function is_active_ip() { [[ -n "$2" ]] && in_arr "$@"; }
 
@@ -119,7 +114,7 @@ function valid_cidr() {
 }
 
 function find_ip_in_networks() {
-    local ip="$1" tmp_arr=("${@:2}")
+    local a b c d e f g h network ip="$1" tmp_arr=("${@:2}")
     [ -z "$tmp_arr" ] && return 1
     for network in "${tmp_arr[@]}"; do
 	valid_cidr "$network" || continue
@@ -150,29 +145,29 @@ function verb() {
 
 
 
-# [ 0,026 - 10 LXCs] 21x faster then 'pct list'
-# To check: Prox after fresh install
-function list_lxc_no_pct() {
+# [ 0,027 - 10 LXCs] 20x faster then 'pct list'
+function list_lxc_custom() {
     local row name status vmid cfg_file cfg_dir="/etc/pve/lxc"
 
     [[ ! -d "$cfg_dir" ]] && return 1
     ls "$cfg_dir"/*.conf &>/dev/null || return 0
 
-    echo -e "VMID\tStatus\tName"
+    printf "%-10s %-10s %-12s %s\n" "VMID" "Status" "Lock" "Name"
     for cfg_file in "$cfg_dir"/*.conf; do
         vmid="${cfg_file##*/}"; vmid="${vmid%.conf}"
         name=$(awk -F ': *' '/^hostname:/ { print $2; exit }' "$cfg_file")
+	lock=$(awk -F ': *' '/^lock:/ { print $2; exit }' "$cfg_file")
         status=$(lxc-info -n "$vmid" | awk -F ': *' '/^State:/ { print tolower($2); exit }') #'
-        echo -e "${vmid}\t${status}\t${name:-unknown}"
+	printf "%-10s %-10s %-12s %s\n" "$vmid" "$status" "${lock:-}" "${name:-}"
     done
 }
 
-# To check: Prox after fresh install
-list_qemu_no_qm() {
+# TC: After fresh install
+list_vm_custom() {
     local cfg_file vmid name status cfg_dir="/etc/pve/qemu-server"
 
     [ ! -d "$cfg_dir" ] && return 1
-    printf "      VMID NAME                 STATUS\n"
+    printf "%10s %-20s %-10s\n" "VMID" "NAME" "STATUS"
     ls "$cfg_dir"/*.conf &>/dev/null || return 0
 
     for cfg_file in "$cfg_dir"/*.conf; do
@@ -197,7 +192,6 @@ list_qemu_no_qm() {
 
 function join_tags() {
     [ -z "${*}" ] || printf "%s\n" "$*" | xargs | tr ' ' ','
-    return
 }
 
 # Works with VM and LXC. Results are unique and in proper order.
@@ -210,7 +204,31 @@ find_tags_for_guest() {
 
     ! is_num "$vmid" && verb 1 "$vmid: [Critical error] Input value '$vmid' is not an integer. Exiting." && exit
 
-    if [ "$VM_LXC_CONFIG_SOURCE" == 'qm_pct' ]; then
+    if [ "$VM_LXC_CONFIG_SOURCE" == 'cfg_files' ]; then
+
+	[ "$type" == "lxc" ] && conf="/etc/pve/lxc/${vmid}.conf" || conf="/etc/pve/qemu-server/${vmid}.conf"
+	if [ ! -f "$conf" ]; then
+	    verb 1 "$vmid: [Critical error] File not found '$conf'. Exiting."
+	    exit 1
+	fi
+
+	# snapshot-proof
+	while IFS= read -r line; do
+    	    [[ "$line" =~ ^\[.*\] ]] && break
+    	    if [[ "$line" =~ ^tags: ]]; then
+        	for tag in $(echo "$line" | awk -F': ' '{print $2}' | tr ';' '\n'); do
+            	    if [[ ! " ${guest_tags[@]} " =~ " ${tag} " ]]; then
+                	[ "$tag" ] && guest_tags+=("$tag")
+            	    fi
+        	done
+    	    fi
+    	    if [[ "$line" =~ ^agent: ]]; then
+		guest_agent="$(echo "${line#*: }" | cut -d, -f1 | xargs)"
+	    fi
+	done < "$conf"
+
+    else
+
 	if [ "$type" == 'lxc' ]; then
 	    cmd_out="$(pct config $vmid)"
 	    [ $? -gt 0 ] && verb 1 "pct config $vmid: [Critical error] Failed to read config. Exiting." && exit 1
@@ -220,30 +238,8 @@ find_tags_for_guest() {
             guest_agent="$(echo "$cmd_out" | awk -F': ' '/^agent:/ {print $2}' | cut -d, -f1 | xargs)"
 	fi
         mapfile -t guest_tags < <(echo "$cmd_out" | awk -F': ' '/^tags:/ {print $2}' | xargs | tr ';' '\n')
-	return 0
-    fi
 
-    [ "$type" == "lxc" ] && conf="/etc/pve/lxc/${vmid}.conf"
-    [ "$type" == "vm"  ] && conf="/etc/pve/qemu-server/${vmid}.conf"
-    if [ ! -f "$conf" ]; then
-	verb 1 "$vmid: [Critical error] File not found '$conf'. Exiting."
-	exit 1
     fi
-
-    # snapshot-proof
-    while IFS= read -r line; do
-        [[ "$line" =~ ^\[.*\] ]] && break
-        if [[ "$line" =~ ^tags: ]]; then
-            for tag in $(echo "$line" | awk -F': ' '{print $2}' | tr ';' '\n'); do
-                if [[ ! " ${guest_tags[@]} " =~ " ${tag} " ]]; then
-                    [ "$tag" ] && guest_tags+=("$tag")
-                fi
-            done
-        fi
-        if [[ "$line" =~ ^agent: ]]; then
-	    guest_agent="$(echo "${line#*: }" | cut -d, -f1 | xargs)"
-	fi
-    done < "$conf"
 
     return 0
 }
@@ -252,14 +248,14 @@ find_tags_for_guest() {
 function update_tags() {
     [[ "$1" == "lxc" || "$1" == "vm" ]] || return
 
-    local type="$1" cur_tags=() new_tags=() new_tags_tmp cur_tags_tmp cmd_out vm_list vm_ips_list=() ip
-    local ttype="${type^^}"
+    local ip new_tags_tmp cur_tags_tmp cmd_out vm_list vm_ips_list=() cur_tags=() new_tags=()
+    local type="$1" ttype="${1^^}"
 
     verb 4; verb 4 "$ttype update tags"; verb 4 "- - - - - - - -"
 
     if [ "$type" == 'lxc' ]; then
 	if [ "$VM_LXC_LIST_METHOD" == 'custom' ]; then
-	    cmd_out="$( list_lxc_no_pct )"
+	    cmd_out="$( list_lxc_custom )"
 	else
 	    cmd_out="$( pct list )"
 	fi
@@ -267,7 +263,7 @@ function update_tags() {
 	vm_list="$( echo "$cmd_out" | awk 'NR>1 {print $1, $2}' )"
     else
 	if [ "$VM_LXC_LIST_METHOD" == 'custom' ]; then
-	    cmd_out="$( list_qemu_no_qm )"
+	    cmd_out="$( list_vm_custom )"
 	else
     	    cmd_out="$( qm list )"
 	fi
@@ -285,23 +281,23 @@ function update_tags() {
 
 	verb 6
 
-        # Ignore these vm/lxc
+        # Ignore specified VMs and LXCs
         is_ignored_vm "$vmid" && verb 4 "$vmid: no changes [ $type ignored ]" && continue
 
-        # Read all tags from VM/LXC and 'guest_agent'
+        # Read all tags and guest_agent status
 	find_tags_for_guest "$type" "$vmid"
 	cur_tags=("${guest_tags[@]}")
 
-	# Collect IP from running VM/lxC
+	# Collect IPs from running VMs and LXCs
 	if [ "$status" == 'running' ]; then
 
-            # List IP's of VM/LXC
+            # List of IPs inside VM/LXC
 	    if [ "$type" == 'lxc' ]; then
         	mapfile -t vm_ips_list < <(lxc-info -n "${vmid}" -i 2>/dev/null | awk '{print $2}' \
 		    | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' \
 		    | grep -v '^127\.0\.0\.1$' )
 	    else
-		# VMs with guest-agent
+		# VMs with guest_agent
 		if [ "$guest_agent" == "1" ]; then
 		    if [ $jqi -eq 1 ]; then
 			mapfile -t vm_ips_list < <( qm guest cmd "$vmid" network-get-interfaces 2>/dev/null \
@@ -316,7 +312,7 @@ function update_tags() {
 			    | awk -F'"' '{print $4}' \
 			    | grep -v '127\.0\.\0\.1' )
 		    fi
-		# VMs without guest-agent
+		# VMs without guest_agent
 		else
         	    # Maybe add IP lookup with a simple network scan and ARP table?
 		    verb 4 "$vmid: no changes [ guest agent disabled ]" && continue	
@@ -332,7 +328,7 @@ function update_tags() {
         	in_network_range "$ip" && active_ip_tags+=("$ip") && verb 6 "$vmid: active IP -> '$ip'"
 	    done
 
-	# Collect inactive IP from stopped VM/lxC
+	# Collect inactive IP from stopped VM/LXC
 	else
     	    for cur_tag in "${cur_tags[@]}"; do
         	in_network_range "$cur_tag" && inactive_ip_tags+=("$cur_tag") && verb 6 "$vmid: inactive IP -> '$cur_tag'"
@@ -373,8 +369,7 @@ function update_tags() {
 		    new_tags+=("$cur_tag")
 		done
 	    fi
-	    	    
-	    # new to test
+
 	    # Conditional sorting of IP addresses retrieved from running VMs
 	    if [ "$FORCE_IP_TAGS_POS" == "1" ]; then
         	if [ "$IP_TAGS_POS" == "last" ]; then
@@ -407,7 +402,7 @@ function update_tags() {
 		    in_network_range "$cur_tag" || new_tags+=("$cur_tag")
 		done
 	    else
-		# verb 4 "$vmid: no changes" && continue # uncomment to disable sorting stopped
+		# verb 4 "$vmid: no changes" && continue # uncomment to disable sorting
 		# Sorting stopped VM/LXC
 
 		[ "$FORCE_IP_TAGS_POS" == "0" ] && verb 4 "$vmid: no changes" && continue
@@ -433,7 +428,6 @@ function update_tags() {
 		    fi
 		done
 
-		# new to test
 		# Conditional sorting of IP addresses retrieved from stopped VMs
 		if [ "$FORCE_IP_TAGS_POS" == "1" ]; then
 		    ip_tags_range_ordered=( $(printf "%s\n" "${ip_tags_range_ordered[@]}" | sort -u -V -r) )
@@ -488,6 +482,8 @@ function update_tags() {
 }
 
 function updates_vm_tags_and_tags_colors() {
+    local inact_ip act_ip
+
     active_ip_tags=()
     inactive_ip_tags=() 
 
@@ -619,31 +615,35 @@ function build_config_string() {
 
 
 function guest_type_check() {
-    local pct_out qm_out
+    local pct_out qm_out cust_out
+
     if (( GUEST_TYPE & 1 )); then
-	pct_out="$(pct list 2>/dev/null| head -n 1)"
-	if [ -z "$pct_out" ]; then
-	    verb 2 "[Notice] LXC support enabled, but no containers found."
-	fi
-	if [[ "$VM_LXC_LIST_METHOD" == 'custom' && -z "$(list_lxc_no_pct | head -n 1)" && -n "$pct_out" ]]; then
-	    verb 2 "[Warning] Mismatch between output of the custom method and 'pct list'."
-	    verb 2 "[Warning] Falling back to: 'VM_LXC_LIST_METHOD=qm_pct'."
-	    VM_LXC_LIST_METHOD='qm_pct'
+	pct_out="$( pct list 2>/dev/null | wc -l )"
+	[ "$pct_out" -eq 0 ] && verb 2 "[Notice] LXC support enabled, but no containers found."
+
+	if [[ "$VM_LXC_LIST_METHOD" == 'custom' ]]; then
+	    cust_out="$( list_lxc_custom 2>/dev/null | wc -l )"
+	    if  [[ "$cust_out" -ne "$pct_out" ]]; then
+		verb 2 "[Warning] Mismatch between output of the custom method and 'pct list'."
+		verb 2 "[Warning] Falling back to: 'VM_LXC_LIST_METHOD=qm_pct'."
+		VM_LXC_LIST_METHOD='qm_pct'
+	    fi
 	fi
     fi
 
     if (( GUEST_TYPE & 2 )); then
-	qm_out="$(qm list 2>/dev/null| tail -n +2 | head -n 1)"
-	if [ -z "$qm_out" ]; then
-	    verb 2 "[Notice] VM support enabled, but no VMs found."
-	fi
-	if [[ "$VM_LXC_LIST_METHOD" == 'custom' && -z "$(list_qemu_no_qm | head -n 1)" && -n "$qm_out" ]]; then
-	    verb 2 "[Warning] Mismatch between output of the custom method and 'qm list'."
-	    verb 2 "[Warning] Falling back to: 'VM_LXC_LIST_METHOD=qm_pct'."
-	    VM_LXC_LIST_METHOD='qm_pct'
+	qm_out="$( qm list 2>/dev/null | wc -l )"
+	[ "$qm_out" -eq 0 ] && verb 2 "[Notice] VM support enabled, but no VMs found."
+
+	if [[ "$VM_LXC_LIST_METHOD" == 'custom' ]]; then
+	    cust_out="$( list_vm_custom 2>/dev/null | wc -l )"
+	    if  [[ "$cust_out" -ne "$qm_out" ]]; then
+		verb 2 "[Warning] Mismatch between output of the custom method and 'qm list'."
+		verb 2 "[Warning] Falling back to: 'VM_LXC_LIST_METHOD=qm_pct'."
+		VM_LXC_LIST_METHOD='qm_pct'
+	    fi
 	fi
     fi
-
 }
 
 function p_init() {
@@ -678,8 +678,6 @@ function p_init() {
     # Checking config values
     [[ ! "$GUEST_TYPE" =~ ^[123]$ ]] \
 	&& verb 1 "[Critical error] Bad value for: GUEST_TYPE -> '$GUEST_TYPE'" && exit 1
-
-    guest_type_check
 
     [[ ! "$VM_LXC_CONFIG_SOURCE" =~ ^(cfg_files|qm_pct)$ ]] \
 	&& verb 1 "[Critical error] Bad value for: VM_LXC_CONFIG_SOURCE -> '$VM_LXC_CONFIG_SOURCE'" && exit 1
@@ -741,6 +739,8 @@ function p_init() {
     done
     NETWORK_RANGES_IGNORED=("${tmp[@]}")
 
+    guest_type_check
+
     update_ip_tags_last_run=0
     verb 4 'Everything ok'
     read_cluster_config
@@ -764,6 +764,3 @@ function main() {
 }
 
 main "$@"
-
-# Todo
-# - IP lookup using ethernet addr. and arp table for non-guest VMs (?)
