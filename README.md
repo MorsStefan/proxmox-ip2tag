@@ -7,7 +7,7 @@ in a Proxmox environment. It is an alternative to lxc-iptags but is more extensi
 
 ### Key Features:  
 
-- Support for containers (LXCs), virtual machines (VMs), or both  
+- Support for containers (LXCs) and virtual machines (VMs)  
 - Independent user-defined colors for active and inactive IP tags  
 - Control over tag placement (beginning or end)  
 - Automatic sorting of IP tags for running and stopped guests  
@@ -19,7 +19,7 @@ in a Proxmox environment. It is an alternative to lxc-iptags but is more extensi
 - Built-in config validation on startup to prevent runtime errors  
 - Faster retrieval of selected settings compared to pvesh, qm, and lxc  
 
-## Installation and upgrade
+## Automatic installation and upgrade
 
 To install or upgrade to the latest stable release, run as root:
 
@@ -27,8 +27,8 @@ To install or upgrade to the latest stable release, run as root:
 INSTALL_SOURCE=github bash -c "$(curl -sSL https://github.com/MorsStefan/proxmox-ip2tag/releases/latest/download/prox-ip2tag_install.sh)"
 ```
 
-The script will automatically download all necessary files and perform automatic installation.  
-The original configuration file will remain untouched – the new config will be saved as: `/usr/local/etc/prox-ip2tag.conf_new`  
+The script will download all necessary files and perform the installation automatically.
+If the original configuration file exists, it will remain untouched – a new config will be saved as: `/usr/local/etc/prox-ip2tag.conf_new`  
 
 You can control the behavior of the installer using environment variables:  
 
@@ -87,10 +87,20 @@ The configuration file with all available options is located at: `/usr/local/etc
 | `DISPLAY_TIMESTAMP`       | `0`             | Prefixes each output line with a timestamp - useful for terminal logging.  |
 | `VERBOSE`                 | `3`             | Verbosity level of log messages: \[ 0 \| 1 \| 2 \| 3 \| 4 \| 5 \| 6 \].    |
 
-
 \*1 - When `CHANGE_IP_TAGS_COLORS`=`0`, it overwrites `INACTIVE_IP_TAGS_ACTION=change_color` and `INACTIVE_IP_TAGS_ACTION=change_none`.  
 \*2 - Require cluster setting: `Datacenter->Options->Tag Style Override->Ordering='Configuration'`  
 \*3 - The `cfg_files` option is very fast because it reads local configuration files; otherwise, the default Proxmox tools are used.
+
+### Enabling full visibility for IP tags
+
+To make IP tags fully visible in the Proxmox interface, adjust the tag display settings:
+
+- Open the Proxmox web interface.
+- Navigate to: `Datacenter -> Options`.
+- Find the `Tag Style Override` option and click `Edit`.
+- Set `Tree shape = Full`.
+- Set `Ordering = Configuration`.
+- Save the changes.
 
 ## Usage
 
