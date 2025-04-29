@@ -3,7 +3,7 @@
 This script automatically assigns tags containing IP addresses to virtual machines and containers running
 in a Proxmox environment. It is an alternative to lxc-iptags but is more extensive and flexible in many ways.
 
-![](./img/prox-ip2tag-p1.png)
+![](./img/prox-ip2tag-p2.png)
 
 ### Key Features:  
 
@@ -32,11 +32,11 @@ If the original configuration file exists, it will remain untouched – a new co
 
 You can control the behavior of the installer using environment variables:  
 
-| Variable | Default | Description |
-|:--|:--|:--|
-| INSTALL_SOURCE    | (not set) | If set to github, downloads the installer files from GitHub Releases. If not set, the installer uses local files from the current working directory. |
-| AUTO_START        | yes       | If yes, the prox-ip2tag systemd service will be enabled and started after installation. If no, the service will not be started automatically. |
-| SKIP_DEPENDENCIES | no        | If no, the installer will attempt to install the jq package automatically. If yes, dependency installation will be skipped. |
+| Variable           | Default     | Description                                                                                                                 |
+|--------------------|-------------|-----------------------------------------------------------------------------------------------------------------------------|
+| INSTALL_SOURCE     | (not set)   | If set to github, downloads the installer files from GitHub Releases. If not set, the installer uses local files from the current working directory. |
+| AUTO_START         | yes         | If yes, the prox-ip2tag systemd service will be enabled and started after installation. If no, the service will not be started automatically. |
+| SKIP_DEPENDENCIES  | no          | If no, the installer will attempt to install the jq package automatically. If yes, dependency installation will be skipped. |
 
 ## Manual installation and upgrade
 
