@@ -34,7 +34,7 @@ download() {
 
 copy() {
     local src="$1" dst="$2"
-    yes | cp -f "$src" "$dst" || {
+    cp -f "$src" "$dst" || {
         echo "Copy failed: $src -> $dst"
         exit 1
     }
