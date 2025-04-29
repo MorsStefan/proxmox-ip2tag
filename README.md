@@ -27,17 +27,21 @@ To install or upgrade to the latest stable release, run as root:
 INSTALL_SOURCE=github bash -c "$(curl -sSL https://github.com/MorsStefan/proxmox-ip2tag/releases/latest/download/prox-ip2tag_install.sh)"
 ```
 
-The script will automatically download all necessary files and perform a installation.  
+The script will automatically download all necessary files and perform automatic installation.  
+The original configuration file will remain untouched – the new config will be saved as: `/usr/local/etc/prox-ip2tag.conf_new`  
 
-If a previous version of the program is detected, it will be replaced **only after confirmation**.  
-The original configuration file will remain untouched – the new config will be saved as:  
+You can control the behavior of the installer using environment variables:  
 
-`/usr/local/etc/prox-ip2tag.conf_new`  
+| Variable | Default | Description |
+|:--|:--|:--|
+| INSTALL_SOURCE    | (not set) | If set to github, downloads the installer files from GitHub Releases. If not set, the installer uses local files from the current working directory. |
+| AUTO_START        | yes       | If yes, the prox-ip2tag systemd service will be enabled and started after installation. If no, the service will not be started automatically. |
+| SKIP_DEPENDENCIES | no        | If no, the installer will attempt to install the jq package automatically. If yes, dependency installation will be skipped. |
 
 ## Manual installation and upgrade
 
 Download the latest stable release, extract it, and run the `prox-ip2tag_install.sh` installer
-— the same script used for online installation, supporting both online and offline methods.  
+— the same script used for online installation.  
 
 If you prefer full control over every file, follow these steps:
 
