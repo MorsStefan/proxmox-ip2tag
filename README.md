@@ -2,6 +2,7 @@
 
 This script automatically assigns tags containing IP addresses to virtual machines and containers running
 in a Proxmox environment. It is an alternative to lxc-iptags but is more extensive and flexible in many ways.
+It has been tested on Proxmox versions 8.x through 9.1.x.
 
 ![](./img/prox-ip2tag-p2.png)
 
@@ -34,9 +35,9 @@ You can control the behavior of the installer using environment variables:
 
 | Variable           | Default     | Description                                                                                                                 |
 |--------------------|-------------|-----------------------------------------------------------------------------------------------------------------------------|
-| INSTALL_SOURCE     | (not set)   | If set to github, downloads the installer files from GitHub Releases. If not set, the installer uses local files from the current working directory. |
-| AUTO_START         | yes         | If yes, the prox-ip2tag systemd service will be enabled and started after installation. If no, the service will not be started automatically. |
-| SKIP_DEPENDENCIES  | no          | If no, the installer will attempt to install the jq package automatically. If yes, dependency installation will be skipped. |
+| INSTALL_SOURCE     | (not set)   | If set to `github`, downloads the installer files from GitHub Releases. If not set, the installer uses local files from the current working directory. |
+| AUTO_START         | `yes`         | If `yes`, the prox-ip2tag systemd service will be enabled and started after installation. If `no`, the service will not be started automatically. |
+| SKIP_DEPENDENCIES  | `no`          | If `no`, the installer will attempt to install the jq package automatically. If `yes`, dependency installation will be skipped. |
 
 ## Manual installation and upgrade
 
@@ -69,8 +70,8 @@ The configuration file with all available options is located at: `/usr/local/etc
 | Option                    | Default         | Description                                                                |
 |---------------------------|-----------------|----------------------------------------------------------------------------|
 | `GUEST_TYPE`              | `3`             | Defines which guest types to process: 1 = LXCs, 2 = VMs, 3 = both.         |
-| `NETWORK_RANGES`          | `(0.0.0.0/0)`   | IP addresses and network ranges in CIDR format in which IP must be located in order to be automatically added or removed as IP tag. |
-| `NETWORK_RANGES_IGNORED`  | `(127.0.0.1)`   | Do not auto add or remove IP tags for VMs and LXCs from this range, and do not change their color. |
+| `NETWORK_RANGES`          | `(0.0.0.0/0)`   | IP addresses and network ranges in CIDR format in which IP must be located in order to be automatically added or removed as an IP tag. |
+| `NETWORK_RANGES_IGNORED`  | `(127.0.0.1)`   | Do not auto-add or remove IP tags for VMs and LXCs from this range, and do not change their color. |
 | `IGNORED_VMIDS`           | `()`            | Ignore these LXCs and VMs.                                                 |
 | `INACTIVE_IP_TAGS_ACTION` | `change_color`  | What to do with IP tags when VM/LXC is stopped: \[ `remove` \| `change_color` \| `none` \]. |
 | `CHANGE_IP_TAGS_COLORS`   | `1`             | Allow changing Proxmox default tags colors: \[ 0 \| 1 \]. <sup>(\*1)</sup> |
@@ -87,8 +88,8 @@ The configuration file with all available options is located at: `/usr/local/etc
 | `DISPLAY_TIMESTAMP`       | `0`             | Prefixes each output line with a timestamp - useful for terminal logging.  |
 | `VERBOSE`                 | `3`             | Verbosity level of log messages: \[ 0 \| 1 \| 2 \| 3 \| 4 \| 5 \| 6 \].    |
 
-\*1 - When `CHANGE_IP_TAGS_COLORS`=`0`, it overwrites `INACTIVE_IP_TAGS_ACTION=change_color` and `INACTIVE_IP_TAGS_ACTION=change_none`.  
-\*2 - Require cluster setting: `Datacenter->Options->Tag Style Override->Ordering='Configuration'`  
+\*1 - When `CHANGE_IP_TAGS_COLORS`=`0`, it overwrites `INACTIVE_IP_TAGS_ACTION=change_color` and `INACTIVE_IP_TAGS_ACTION=none`.  
+\*2 - Requires cluster setting: `Datacenter->Options->Tag Style Override->Ordering='Configuration'`  
 \*3 - The `cfg_files` option is very fast because it reads local configuration files; otherwise, the default Proxmox tools are used.
 
 ### Enabling full visibility for IP tags
@@ -118,14 +119,14 @@ For example, to include only common local networks and a single IP address:
 NETWORK_RANGES=( 192.168.0.0/16 10.0.0.0/8 194.181.15.20 )
 ```
 IP addresses that should be ignored must be added to the `NETWORK_RANGES_IGNORED` variable.
-This list can also include existing IP tags that you don't want to modify. If, for example, docker is
-installed in LXCc and we do not want its internal container (docker) addresses are added as tags:   
+This list can also include existing IP tags that you don't want to modify. For example, when 
+Docker is installed inside an LXC or VM, its internal container (Docker) addresses can be excluded from IP tagging:
 
 ```
 NETWORK_RANGES_IGNORED=( 127.0.0.1 172.17.0.0/16 172.18.0.0/16 )
 ```
 
-This also works the other way around, if these addresses were already assigned as IP tags to a
+This also works the other way around: if these addresses were already assigned as IP tags to a
 LXC/VM, they will not be automatically removed when added to the `NETWORK_RANGES_IGNORED`.   
 
 They will be ignored, just as the variable name suggests.   
@@ -178,7 +179,7 @@ If available memory is limited on the server, you can start virtual machines one
 and shut them down after they get IP tags. Once all machines have tags assigned, you can stop the script (`Ctrl + C`).   
 
 You can now make configuration changes and check the effect by running the script manually again.   
-With the above settings, changes should be visible within 60 seconds after launch.
+With the above settings, changes should be visible within 60 seconds after the script starts.
 
 Once the result is satisfactory, you may reduce the `VERBOSE` level, increase `UPDATE_IP_TAGS_INTERVAL`,
 and run the script as a systemd service.

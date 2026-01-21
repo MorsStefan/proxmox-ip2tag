@@ -2,7 +2,10 @@
 
 # https://github.com/MorsStefan/proxmox-ip2tag/
 # Łukasz Dyś | Mors Stefan
-# 2025-04-29 | ver 0.8.1
+# 2026-01-21 | ver 0.8.2
+
+# To uninstall run script:
+# bash -c "$(curl -sSL https://github.com/MorsStefan/proxmox-ip2tag/releases/latest/download/prox-ip2tag_uninstall.sh)"
 
 #-------------------------------------------------------------------------------
 #          Do not modify this file.
@@ -32,7 +35,7 @@ IGNORED_VMIDS=(
 )
 
 # Allow changing Proxmox default tags colors: [ 0 | 1 ].
-# Overwrites INACTIVE_IP_TAGS_ACTION when set to change_color or none.
+# Overwrites INACTIVE_IP_TAGS_ACTION when set to 'change_color' or 'none'.
 CHANGE_IP_TAGS_COLORS=1
 
 # What to do with IP tags when VM/LXC is stopped: [ remove | change_color | none ].
