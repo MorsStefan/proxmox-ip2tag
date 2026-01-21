@@ -18,10 +18,10 @@ F_TO_DEL=(
 #------------------------------------------------------------------------------
 # Remove IP tags from VMs and LXCs (default).
 # Values: [ yes | no ]
-KEEP_TAGS="${KEEP_TAGS:-no}"
+KEEP_IP_TAGS="${KEEP_IP_TAGS:-no}"
 
-if [[ ! "$KEEP_TAGS" =~ ^(yes|no)$ ]]; then
-    echo "[Error] Bad value for: KEEP_TAGS -> '$KEEP_TAGS'"
+if [[ ! "$KEEP_IP_TAGS" =~ ^(yes|no)$ ]]; then
+    echo "[Error] Bad value for: KEEP_IP_TAGS -> '$KEEP_IP_TAGS'"
     exit 1
 fi
 #------------------------------------------------------------------------------
@@ -141,7 +141,7 @@ for delete_me in "${F_TO_DEL[@]}"; do
     remove_file "$delete_me"
 done
 
-if [ "$KEEP_TAGS" == 'no' ]; then
+if [ "$KEEP_IP_TAGS" == 'no' ]; then
     echo
     echo "Removing IP tags from containers..."
     remove_ip_tag "lxc"

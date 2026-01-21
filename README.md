@@ -195,7 +195,7 @@ bash -c "$(curl -sSL https://github.com/MorsStefan/proxmox-ip2tag/releases/lates
 To uninstall while keeping IP tags in VMs and LXCs:
 
 ```
-KEEP_TAGS=yes bash -c "$(curl -sSL https://github.com/MorsStefan/proxmox-ip2tag/releases/latest/download/prox-ip2tag_uninstall.sh)"
+KEEP_IP_TAGS=yes bash -c "$(curl -sSL https://github.com/MorsStefan/proxmox-ip2tag/releases/latest/download/prox-ip2tag_uninstall.sh)"
 ```
 
 **Alternative manual method (keeps IP tags in VMs and LXCs):**
