@@ -186,13 +186,19 @@ and run the script as a systemd service.
 
 ## Uninstall
 
-Preffered method:
+Preferred automated uninstallation method (removes IP tags from VMs and LXCs):
 
 ```
 bash -c "$(curl -sSL https://github.com/MorsStefan/proxmox-ip2tag/releases/latest/download/prox-ip2tag_uninstall.sh)"
 ```
 
-### Manual
+To uninstall while keeping IP tags in VMs and LXCs:
+
+```
+KEEP_TAGS=yes bash -c "$(curl -sSL https://github.com/MorsStefan/proxmox-ip2tag/releases/latest/download/prox-ip2tag_uninstall.sh)"
+```
+
+**Alternative manual method (keeps IP tags in VMs and LXCs):**
 
 ```
 # stop and disable prox-ip2tag.service
