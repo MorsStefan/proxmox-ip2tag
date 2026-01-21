@@ -2,7 +2,7 @@
 
 # https://github.com/MorsStefan/proxmox-ip2tag/
 # Łukasz Dyś | Mors Stefan
-# 2026-01-21 | ver 0.8.2
+# 2026-01-21 | ver 0.9.1
 
 set -euo pipefail
 
