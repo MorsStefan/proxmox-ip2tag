@@ -133,4 +133,4 @@ fi
 
 del_tmpd
 echo "-------------------------"
-echo "Installation complete."
+echo "Installation completed."
