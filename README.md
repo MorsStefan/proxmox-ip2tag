@@ -1,7 +1,7 @@
 # Proxmox ip2tag
 
 This script automatically assigns tags containing IP addresses to virtual machines and containers running
-in a Proxmox environment. It is an alternative to lxc-iptags but is more extensive and flexible in many ways.
+in a Proxmox environment. It is an alternative to lxc-iptags but is more extensive and flexible in many ways.  
 It has been tested on Proxmox versions 8.x through 9.1.x.
 
 ![](./img/prox-ip2tag-p2.png)
@@ -186,6 +186,14 @@ and run the script as a systemd service.
 
 ## Uninstall
 
+Preffered method:
+
+```
+bash -c "$(curl -sSL https://github.com/MorsStefan/proxmox-ip2tag/releases/latest/download/prox-ip2tag_uninstall.sh)"
+```
+
+### Manual
+
 ```
 # stop and disable prox-ip2tag.service
 systemctl stop prox-ip2tag.service
@@ -200,10 +208,10 @@ rm -fv /usr/local/etc/prox-ip2tag.conf
 ## Roadmap
 
 - ~~Sort tags for stopped VMs and LXCs~~ [0.7.6]  
-- Read IP addresses from stopped LXC containers 
-- Use `pvesh get` for alternative configuration reading
+- Read IP addresses from stopped LXC containers  
+- Use `pvesh get` for alternative configuration reading  
 - ~~Support ranges and IPs in 'ignored_ip_tags_list'~~ [0.8.0]  
 - ~~Replace 'ignored_ip_tags_list' with 'NETWORK_RANGES_IGNORED'~~ [0.8.0]  
 - ~~Implement a faster method for reading settings than 'pvesh', 'qm', and 'lxc'~~ [0.8.0]  
-- Add a tool to remove all IP tags from VMs and LXCs
+- ~~Add a tool to remove all IP tags from VMs and LXCs~~ [0.9.0]  
 - Add the `--dry-run` option
