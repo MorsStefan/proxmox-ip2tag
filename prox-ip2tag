@@ -2,7 +2,7 @@
 
 # https://github.com/MorsStefan/proxmox-ip2tag/
 # Łukasz Dyś | Mors Stefan
-# 2026-01-21 | ver 0.9.1
+# 2026-02-21 | ver 0.9.2
 
 # Install/update:
 # INSTALL_SOURCE=github bash -c "$(curl -sSL https://github.com/MorsStefan/proxmox-ip2tag/releases/latest/download/prox-ip2tag_install.sh)"
@@ -153,7 +153,7 @@ function verb() {
 
 # [ 0,027 - 10 LXCs] 20x faster then 'pct list'
 function list_lxc_custom() {
-    local row name status vmid cfg_file cfg_dir="/etc/pve/lxc"
+    local cmd_out row name status vmid cfg_file cfg_dir="/etc/pve/lxc"
 
     [[ ! -d "$cfg_dir" ]] && return 1
     ls "$cfg_dir"/*.conf &>/dev/null || return 0
@@ -163,7 +163,14 @@ function list_lxc_custom() {
         vmid="${cfg_file##*/}"; vmid="${vmid%.conf}"
         name=$(awk -F ': *' '/^hostname:/ { print $2; exit }' "$cfg_file")
 	lock=$(awk -F ': *' '/^lock:/ { print $2; exit }' "$cfg_file")
-        status=$(lxc-info -n "$vmid" | awk -F ': *' '/^State:/ { print tolower($2); exit }') #'
+        #status=$(lxc-info -n "$vmid" 2>/dev/null | awk -F ': *' '/^State:/ { print tolower($2); exit }') #'
+	cmd_out="$(lxc-info -n "$vmid" 2>/dev/null)"
+	if [ $? -eq 0 ]; then
+	    status="$(awk -F ': *' '/^State:/ { print tolower($2); exit }' <<<"$cmd_out")"
+	else
+	    # LXC not in db, assuming stopped (created outside Proxmox or never run).
+	    status='stopped'
+	fi
 	printf "%-10s %-10s %-12s %s\n" "$vmid" "$status" "${lock:-}" "${name:-}"
     done
 }
